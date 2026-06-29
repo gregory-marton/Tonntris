@@ -6,19 +6,31 @@ const App = {
     currentMode: 'chop',
 
     init: function() {
-        const toggleBtn = document.getElementById('toggle-mode');
-        toggleBtn.onclick = () => this.switchMode();
+        const options = document.querySelectorAll('.mode-option');
+        options.forEach((opt, idx) => {
+            opt.onclick = () => this.setMode(opt.getAttribute('data-mode'), idx);
+        });
         
         // Start in Chop Mode
         ChopMode.init();
     },
 
-    switchMode: function() {
+    setMode: function(mode, idx) {
+        if (this.currentMode === mode) return;
+
         const badge = document.getElementById('mode-badge');
-        const toggleBtn = document.getElementById('toggle-mode');
         const stats = document.getElementById('puzzle-stats');
         const chopCtrls = document.getElementById('chop-controls');
         const clickAction = document.getElementById('click-action');
+        const activePill = document.querySelector('.mode-slider-active');
+        const options = document.querySelectorAll('.mode-option');
+
+        // Update active class on options
+        options.forEach(opt => opt.classList.remove('active'));
+        options[idx].classList.add('active');
+
+        // Slide the active background indicator
+        activePill.style.transform = `translateX(${idx * 100}%)`;
 
         // Clean up global listeners
         window.onkeydown = null;
@@ -29,30 +41,26 @@ const App = {
             clearInterval(GravityMode.state.timer);
         }
 
-        if (this.currentMode === 'chop') {
-            this.currentMode = 'puzzle';
-            badge.textContent = 'PUZZLE MODE';
-            toggleBtn.textContent = 'Switch to Gravity Mode';
-            stats.style.display = 'block';
-            chopCtrls.style.display = 'none';
-            clickAction.textContent = 'Place Piece';
-            PuzzleMode.init();
-        } else if (this.currentMode === 'puzzle') {
-            this.currentMode = 'gravity';
-            badge.textContent = 'GRAVITY MODE';
-            toggleBtn.textContent = 'Switch to Chop Mode';
-            stats.style.display = 'block';
-            chopCtrls.style.display = 'none';
-            clickAction.textContent = 'Drop Piece';
-            GravityMode.init();
-        } else {
-            this.currentMode = 'chop';
+        this.currentMode = mode;
+
+        if (mode === 'chop') {
             badge.textContent = 'CHOP MODE';
-            toggleBtn.textContent = 'Switch to Puzzle Mode';
             stats.style.display = 'none';
             chopCtrls.style.display = 'block';
             clickAction.textContent = 'Place/Pick up';
             ChopMode.init();
+        } else if (mode === 'puzzle') {
+            badge.textContent = 'PUZZLE MODE';
+            stats.style.display = 'block';
+            chopCtrls.style.display = 'none';
+            clickAction.textContent = 'Place Piece';
+            PuzzleMode.init();
+        } else if (mode === 'gravity') {
+            badge.textContent = 'GRAVITY MODE';
+            stats.style.display = 'block';
+            chopCtrls.style.display = 'none';
+            clickAction.textContent = 'Drop Piece';
+            GravityMode.init();
         }
     }
 };
