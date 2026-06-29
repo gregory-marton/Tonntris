@@ -60,6 +60,7 @@ const GravityMode = {
             if (pauseBtn) pauseBtn.textContent = 'Resume';
             if (this.state.timer) clearInterval(this.state.timer);
         }
+        this.refreshUI();
     },
 
     randomPiece: function() {
@@ -102,13 +103,33 @@ const GravityMode = {
         if (this.state.isGameOver || this.state.isPaused) return;
 
         const down = this.getDown(this.state.p, this.state.q);
+        
+        // 1. Try to move straight down
         if (Board.checkActivePlacement(this.state.activePiece, down.p, down.q, this.state.rotation)) {
             this.state.p = down.p;
             this.state.q = down.q;
-            this.playActivePieceSound(0.06, 0.3); // very soft/short tick sound
+            this.playActivePieceSound(0.06, 0.3); // tick sound
             this.refreshUI();
         } else {
-            this.lockActivePiece();
+            // 2. Straight down path is blocked. Slide down diagonally as a rigid body:
+            // If q is odd, straight down was DL (p, q-1), so alternative is DR (p+1, q-1)
+            // If q is even, straight down was DR (p+1, q-1), so alternative is DL (p, q-1)
+            let slidePos;
+            if (this.state.q % 2 !== 0) {
+                slidePos = { p: this.state.p + 1, q: this.state.q - 1 };
+            } else {
+                slidePos = { p: this.state.p, q: this.state.q - 1 };
+            }
+
+            if (Board.checkActivePlacement(this.state.activePiece, slidePos.p, slidePos.q, this.state.rotation)) {
+                this.state.p = slidePos.p;
+                this.state.q = slidePos.q;
+                this.playActivePieceSound(0.06, 0.3);
+                this.refreshUI();
+            } else {
+                // Both blocked: lock the piece in place rigidly
+                this.lockActivePiece();
+            }
         }
     },
 
@@ -120,10 +141,7 @@ const GravityMode = {
         const midis = cells.map(c => Tonnetz.getMidi(c.p, c.q));
         Synth.playChord(midis, true, 0.16, 1.2);
 
-        // 1. Settle blocks (slide cascade)
-        this.settleBlocks();
-
-        // 2. Clear lines and settle again if cleared
+        // Clear completed lines and slide remaining blocks above down vertically
         this.processClears();
 
         if (!this.state.isGameOver) {
@@ -138,20 +156,24 @@ const GravityMode = {
         
         while (lines.length > 0) {
             const allNotes = [];
+            // Sort lines by row index q descending (top rows first) to prevent shifting index confusion
+            lines.sort((a, b) => b[0].q - a[0].q);
+
             lines.forEach(line => {
+                const qClear = line[0].q;
                 line.forEach(c => allNotes.push(Tonnetz.getMidi(c.p, c.q)));
                 Board.clearCells(line);
                 this.state.linesCleared++;
                 clearedCount++;
+                
+                // Shift all rows above this cleared row vertically down by 1 unit
+                this.dropRowsAbove(qClear);
             });
 
-            // Flourish sound
+            // Cleared chord sound
             Synth.playChord([...new Set(allNotes)], false, 0.22, 1.5);
 
-            // Settle falling blocks into gaps
-            this.settleBlocks();
-
-            // Check if settling completed new lines
+            // Re-evaluate if dropping completed new lines
             lines = Board.findFullLines();
         }
 
@@ -168,61 +190,58 @@ const GravityMode = {
         }
     },
 
-    settleBlocks: function() {
-        let moved = true;
-        let limit = 100;
-        while (moved && limit > 0) {
-            moved = false;
-            limit--;
-            // Check bottom-up
-            for (let q = 1; q <= 20; q++) {
-                for (let col = -5; col <= 4; col++) {
-                    const p = col - Math.floor(q / 2);
-                    const key = `${p},${q}`;
-                    if (Board.cells.has(key)) {
-                        const cellVal = Board.cells.get(key);
-
-                        const dl = { p: p, q: q - 1 };
-                        const dr = { p: p + 1, q: q - 1 };
-
-                        const dlEmpty = Board.isCellEmpty(dl.p, dl.q);
-                        const drEmpty = Board.isCellEmpty(dr.p, dr.q);
-
-                        if (dlEmpty && drEmpty) {
-                            const down = this.getDown(p, q);
-                            if (Board.isCellEmpty(down.p, down.q)) {
-                                Board.cells.delete(key);
-                                Board.cells.set(`${down.p},${down.q}`, cellVal);
-                                moved = true;
-                            }
-                        } else if (dlEmpty && !drEmpty) {
-                            // Slide down-left
-                            Board.cells.delete(key);
-                            Board.cells.set(`${dl.p},${dl.q}`, cellVal);
-                            moved = true;
-                        } else if (!dlEmpty && drEmpty) {
-                            // Slide down-right
-                            Board.cells.delete(key);
-                            Board.cells.set(`${dr.p},${dr.q}`, cellVal);
-                            moved = true;
-                        }
-                    }
-                }
+    dropRowsAbove: function(qClear) {
+        const cellsToMove = [];
+        Board.cells.forEach((val, key) => {
+            const [p, q] = key.split(',').map(Number);
+            if (q > qClear) {
+                cellsToMove.push({ p, q, val });
             }
-        }
+        });
+        
+        // Sort bottom-to-top to prevent overwriting
+        cellsToMove.sort((a, b) => a.q - b.q);
+        
+        // Delete old positions
+        cellsToMove.forEach(c => Board.cells.delete(`${c.p},${c.q}`));
+        
+        // Insert at new vertically dropped positions
+        cellsToMove.forEach(c => {
+            const down = this.getDown(c.p, c.q);
+            Board.cells.set(`${down.p},${down.q}`, c.val);
+        });
     },
 
     hardDrop: function() {
-        let current = { p: this.state.p, q: this.state.q };
-        let next = this.getDown(current.p, current.q);
-        
-        while (Board.checkActivePlacement(this.state.activePiece, next.p, next.q, this.state.rotation)) {
-            current = next;
-            next = this.getDown(current.p, current.q);
+        let p = this.state.p;
+        let q = this.state.q;
+        let moved = true;
+
+        // Simulate falling path with sliding rules to find landing spot
+        while (moved) {
+            const down = this.getDown(p, q);
+            if (Board.checkActivePlacement(this.state.activePiece, down.p, down.q, this.state.rotation)) {
+                p = down.p;
+                q = down.q;
+            } else {
+                let slidePos;
+                if (q % 2 !== 0) {
+                    slidePos = { p: p + 1, q: q - 1 };
+                } else {
+                    slidePos = { p: p, q: q - 1 };
+                }
+
+                if (Board.checkActivePlacement(this.state.activePiece, slidePos.p, slidePos.q, this.state.rotation)) {
+                    p = slidePos.p;
+                    q = slidePos.q;
+                } else {
+                    moved = false;
+                }
+            }
         }
-        
-        this.state.p = current.p;
-        this.state.q = current.q;
+
+        this.state.p = p;
+        this.state.q = q;
         this.lockActivePiece();
     },
 
@@ -339,10 +358,28 @@ const GravityMode = {
         let ghostP = this.state.p;
         let next = this.getDown(ghostP, ghostQ);
         
-        while (Board.checkActivePlacement(this.state.activePiece, next.p, next.q, this.state.rotation)) {
-            ghostP = next.p;
-            ghostQ = next.q;
-            next = this.getDown(ghostP, ghostQ);
+        // Trace ghost landing using slide physics path
+        let moved = true;
+        while (moved) {
+            const down = this.getDown(ghostP, ghostQ);
+            if (Board.checkActivePlacement(this.state.activePiece, down.p, down.q, this.state.rotation)) {
+                ghostP = down.p;
+                ghostQ = down.q;
+            } else {
+                let slidePos;
+                if (ghostQ % 2 !== 0) {
+                    slidePos = { p: ghostP + 1, q: ghostQ - 1 };
+                } else {
+                    slidePos = { p: ghostP, q: ghostQ - 1 };
+                }
+
+                if (Board.checkActivePlacement(this.state.activePiece, slidePos.p, slidePos.q, this.state.rotation)) {
+                    ghostP = slidePos.p;
+                    ghostQ = slidePos.q;
+                } else {
+                    moved = false;
+                }
+            }
         }
 
         const cells = Pieces.getAbsoluteCells(this.state.activePiece, ghostP, ghostQ, this.state.rotation);
@@ -362,8 +399,9 @@ const GravityMode = {
         window.onkeydown = (e) => {
             const key = e.key.toLowerCase();
             
-            // Allow toggling pause with 'p' key
-            if (key === 'p') {
+            // Allow toggling pause with 'Escape' or 'p' key
+            if (e.key === 'Escape' || e.key === 'Esc' || key === 'p') {
+                e.preventDefault();
                 this.togglePause();
                 return;
             }
