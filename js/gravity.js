@@ -459,11 +459,6 @@ const GravityMode = {
                     this.refreshUI();
                 }
             }
-
-            // 3. Action (Shift-G also hard drops)
-            if (key === 'g' && e.shiftKey) {
-                this.hardDrop();
-            }
         };
     }
 };

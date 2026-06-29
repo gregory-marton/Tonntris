@@ -47,6 +47,7 @@ const App = {
             badge.textContent = 'CHOP MODE';
             stats.style.display = 'none';
             document.getElementById('gravity-controls').style.display = 'none';
+            document.getElementById('placement-controls').style.display = 'block';
             chopCtrls.style.display = 'block';
             clickAction.textContent = 'Place/Pick up';
             ChopMode.init();
@@ -54,6 +55,7 @@ const App = {
             badge.textContent = 'PUZZLE MODE';
             stats.style.display = 'block';
             document.getElementById('gravity-controls').style.display = 'none';
+            document.getElementById('placement-controls').style.display = 'block';
             chopCtrls.style.display = 'none';
             clickAction.textContent = 'Place Piece';
             PuzzleMode.init();
@@ -61,8 +63,8 @@ const App = {
             badge.textContent = 'GRAVITY MODE';
             stats.style.display = 'none';
             document.getElementById('gravity-controls').style.display = 'block';
+            document.getElementById('placement-controls').style.display = 'none';
             chopCtrls.style.display = 'none';
-            clickAction.textContent = 'Drop Piece';
             GravityMode.init();
         }
     }
