@@ -426,7 +426,7 @@ const GravityMode = {
                     this.playActivePieceSound(0.06, 0.3);
                     this.refreshUI();
                 }
-            } else if (key === 'v' || key === 's') { // Soft drop key option
+            } else if (key === 'v' || key === 's' || e.key === 'ArrowDown') { // Soft drop
                 const down = this.getDown(this.state.p, this.state.q);
                 if (Board.checkActivePlacement(this.state.activePiece, down.p, down.q, this.state.rotation)) {
                     this.state.p = down.p;
@@ -434,8 +434,6 @@ const GravityMode = {
                     this.playActivePieceSound(0.06, 0.3);
                     this.refreshUI();
                 }
-            } else if (e.key === 'ArrowDown') { // Down arrow hard drops
-                this.hardDrop();
             }
             
             // 2. Rotate (Space, ArrowUp, or g)
