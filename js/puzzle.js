@@ -174,9 +174,15 @@ const PuzzleMode = {
             const q = isHex ? parseInt(e.target.getAttribute('data-q')) : null;
 
             if (isHex && this.state.activePiece) {
+                const isSameCell = this.state.hoverCell.p === p && this.state.hoverCell.q === q;
+                
                 this.state.hoverCell = { p, q };
-                if (Board.checkPlacement(this.state.activePiece, p, q, this.state.rotation)) {
-                    this.placePiece(p, q);
+                this.updateGhost();
+
+                if (isSameCell) {
+                    if (Board.checkPlacement(this.state.activePiece, p, q, this.state.rotation)) {
+                        this.placePiece(p, q);
+                    }
                 }
             }
         };
