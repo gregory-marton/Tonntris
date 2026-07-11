@@ -46,6 +46,10 @@ const App = {
             clearInterval(GravityMode.state.timer);
         }
 
+        if (typeof MidiMode !== 'undefined') {
+            MidiMode.cleanup();
+        }
+
         this.currentMode = mode;
 
         // Configure mobile action button text based on active mode
@@ -79,26 +83,48 @@ const App = {
             }
         }
 
+        // Hide/show palette
+        const palette = document.getElementById('palette');
+        if (palette) {
+            palette.style.display = mode === 'midi' ? 'none' : 'block';
+        }
+
+        // Hide/show mobile controls
+        const mobileContainer = document.getElementById('mobile-controls');
+        if (mobileContainer) {
+            if (mode === 'midi') {
+                mobileContainer.style.display = 'none';
+            } else {
+                const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+                if (isTouch) mobileContainer.style.display = 'flex';
+            }
+        }
+
+        // Hide all mode-specific panels first
+        stats.style.display = 'none';
+        document.getElementById('gravity-controls').style.display = 'none';
+        if (document.getElementById('midi-controls')) {
+            document.getElementById('midi-controls').style.display = 'none';
+        }
+        document.getElementById('placement-controls').style.display = 'none';
+        chopCtrls.style.display = 'none';
+
         if (mode === 'chop') {
-            stats.style.display = 'none';
-            document.getElementById('gravity-controls').style.display = 'none';
             document.getElementById('placement-controls').style.display = 'block';
             chopCtrls.style.display = 'block';
             if (clickAction) clickAction.textContent = 'Place/Pick up';
             ChopMode.init();
         } else if (mode === 'puzzle') {
             stats.style.display = 'block';
-            document.getElementById('gravity-controls').style.display = 'none';
             document.getElementById('placement-controls').style.display = 'block';
-            chopCtrls.style.display = 'none';
             if (clickAction) clickAction.textContent = 'Place Piece';
             PuzzleMode.init();
         } else if (mode === 'gravity') {
-            stats.style.display = 'none';
             document.getElementById('gravity-controls').style.display = 'block';
-            document.getElementById('placement-controls').style.display = 'none';
-            chopCtrls.style.display = 'none';
             GravityMode.init();
+        } else if (mode === 'midi') {
+            document.getElementById('midi-controls').style.display = 'block';
+            MidiMode.init();
         }
     },
 
@@ -166,6 +192,17 @@ const App = {
         };
 
         svg.addEventListener('touchstart', (e) => {
+            if (this.currentMode === 'midi') {
+                if (e.touches.length === 1) {
+                    const cell = getCellFromTouch(e.touches[0]);
+                    if (cell) {
+                        e.preventDefault();
+                        MidiMode.handleCellInput(cell.p, cell.q);
+                    }
+                }
+                return;
+            }
+
             if (this.currentMode === 'gravity') return; // Gravity mode handles falling loops, skip touch drag/twist
 
             if (e.touches.length === 1) {
@@ -231,6 +268,11 @@ const App = {
         }, { passive: false });
 
         svg.addEventListener('touchmove', (e) => {
+            if (this.currentMode === 'midi') {
+                e.preventDefault();
+                return;
+            }
+
             if (this.currentMode === 'gravity') return;
 
             if (e.touches.length === 1 && !isGesture) {

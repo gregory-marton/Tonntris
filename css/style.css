@@ -168,7 +168,7 @@ svg {
     padding: 2px;
     cursor: pointer;
     user-select: none;
-    width: 240px;
+    width: 320px;
 }
 
 .mode-option {
@@ -195,11 +195,45 @@ svg {
     top: 2px;
     bottom: 2px;
     left: 2px;
-    width: calc(33.333% - 2.666px); /* 1/3 minus padding adjustments */
+    width: calc(25% - 2.666px); /* 1/4 minus padding adjustments */
     background: var(--accent);
     border-radius: 18px;
     z-index: 1;
     transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Custom styles for MIDI mode */
+.custom-file-upload {
+    display: block;
+    text-align: center;
+    background: var(--accent);
+    color: var(--bg);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 5px;
+    transition: opacity 0.2s;
+}
+
+.custom-file-upload:hover {
+    opacity: 0.9;
+}
+
+#midi-filename {
+    font-size: 11px;
+    color: var(--dim);
+    display: block;
+    text-align: center;
+    margin-bottom: 12px;
+    word-break: break-all;
+}
+
+.cell.active-note {
+    fill: var(--accent) !important;
+    stroke: white !important;
+    stroke-width: 2.5px !important;
+    transition: fill 0.05s ease-out, stroke 0.05s ease-out;
 }
 
 button {

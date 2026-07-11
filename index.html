@@ -19,6 +19,7 @@
                     <div class="mode-option active" data-mode="chop">Chop</div>
                     <div class="mode-option" data-mode="puzzle">Puzzle</div>
                     <div class="mode-option" data-mode="gravity">Gravity</div>
+                    <div class="mode-option" data-mode="midi">MIDI</div>
                 </div>
             </div>
         </header>
@@ -40,6 +41,26 @@
                         <p>Lines: <span id="gravity-lines-count">0</span></p>
                         <p>Best: <span id="gravity-best-count">0</span></p>
                         <p>Speed: <span id="gravity-speed-level">1.0x</span></p>
+                    </div>
+                </div>
+
+                <!-- MIDI Mode Controls & Stats -->
+                <div id="midi-controls" style="display: none;">
+                    <div class="control-group">
+                        <label for="midi-file-input" class="custom-file-upload">
+                            Upload MIDI File
+                        </label>
+                        <input id="midi-file-input" type="file" accept=".mid,.midi" style="display: none;" />
+                        <span id="midi-filename">Default: Hot Cross Buns</span>
+                    </div>
+                    <div class="control-buttons" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+                        <button id="midi-play-preview">Play Melody</button>
+                        <button id="midi-game-restart">Restart Game</button>
+                    </div>
+                    <div class="stats-panel" style="margin-top: 15px;">
+                        <p>Current Streak: <span id="midi-current-streak">0</span></p>
+                        <p>Longest Streak: <span id="midi-best-streak">0</span></p>
+                        <p id="midi-game-status" style="font-size: 13px; color: var(--accent); margin-top: 10px; font-weight: bold; line-height: 1.4;">Listen to the notes...</p>
                     </div>
                 </div>
 
@@ -94,6 +115,7 @@
     <script src="js/chop.js"></script>
     <script src="js/puzzle.js"></script>
     <script src="js/gravity.js"></script>
+    <script src="js/midi.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>
