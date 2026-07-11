@@ -456,6 +456,11 @@ const MidiMode = {
         } else {
             // Mistake!
             this.setStatus("Oops! Let's listen again...", "error");
+            
+            // If the user made progress going ahead, save checkpoint
+            if (this.state.userIndex > this.state.targetLength) {
+                this.state.targetLength = this.state.userIndex;
+            }
             this.state.userIndex = 0;
             
             if (this.state.userRepeatTimeoutId) {
