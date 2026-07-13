@@ -3,7 +3,7 @@
  */
 
 const App = {
-    currentMode: 'chop',
+    currentMode: '',
 
     init: function() {
         const options = document.querySelectorAll('.mode-option');
@@ -15,8 +15,8 @@ const App = {
         this.setupTouchGestures();
         this.updateVersionTag();
 
-        // Start in Chop Mode
-        ChopMode.init();
+        // Start in Melody Mode
+        this.setMode('midi', 0);
     },
 
     setMode: function(mode, idx) {

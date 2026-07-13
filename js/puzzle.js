@@ -1,5 +1,5 @@
 /**
- * puzzle.js - Controller for Puzzle Mode.
+ * puzzle.js - Controller for Blast Mode.
  */
 
 const PuzzleMode = {

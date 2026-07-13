@@ -92,7 +92,7 @@ const Render = {
                 const midi = Tonnetz.getMidi(p, q);
                 if (!options.isSnake && (midi < 0 || midi > 127)) continue;
 
-                // For Puzzle Mode, dim cells outside the radius
+                // For Blast Mode, dim cells outside the radius
                 let fill = '#1c1f28';
                 let opacity = 1;
                 if (options.isPuzzle && !Board.isInBounds(p, q)) {

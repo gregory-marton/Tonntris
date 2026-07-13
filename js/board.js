@@ -1,5 +1,5 @@
 /**
- * board.js - State management for the bounded Puzzle board.
+ * board.js - State management for the bounded Blast board.
  * 
  * Radius 5 Hexagon (11 cells across at widest point).
  * Coordinates are axial (p, q).
@@ -142,7 +142,7 @@ const Board = {
             return true;
         }
 
-        // Puzzle Mode default check
+        // Blast Mode default check
         for (let p = -this.radius; p <= this.radius; p++) {
             for (let q = -this.radius; q <= this.radius; q++) {
                 if (!this.isInBounds(p, q)) continue;
