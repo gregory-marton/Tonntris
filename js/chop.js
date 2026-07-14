@@ -20,6 +20,7 @@ const ChopMode = {
         this.renderPalette();
         this.refreshLattice();
         this.setupEvents();
+        this.setupGuide();
 
         // Ensure single game-tooltip exists in DOM
         if (!document.querySelector('.game-tooltip')) {
@@ -342,6 +343,11 @@ const ChopMode = {
         if (tooltip && tooltip.classList) {
             tooltip.classList.remove('visible');
         }
+        const select = document.getElementById('chord-guide-select');
+        if (select) {
+            select.value = '';
+            this.updateGuideResults('');
+        }
     },
 
     showPlacedTooltip: function(e, piece, cells) {
@@ -389,5 +395,89 @@ const ChopMode = {
             tooltip.style.left = `${e.pageX}px`;
             tooltip.style.top = `${e.pageY}px`;
         }
+    },
+
+    setupGuide: function() {
+        const select = document.getElementById('chord-guide-select');
+        if (!select) return;
+        select.onchange = () => {
+            this.updateGuideResults(select.value);
+        };
+    },
+
+    updateGuideResults: function(val) {
+        const resultsDiv = document.getElementById('chord-guide-results');
+        if (!resultsDiv) return;
+
+        if (!val) {
+            resultsDiv.innerHTML = 'Select a chord to see which pieces and rotations create it.';
+            return;
+        }
+
+        const matches = [];
+        for (const typeKey of Object.keys(Pieces.TYPES)) {
+            for (let r = 0; r < 6; r++) {
+                const cells = Pieces.getAbsoluteCells(typeKey, 0, 0, r);
+                const midis = cells.map(c => Tonnetz.getMidi(c.p, c.q));
+                const chordName = Tonnetz.analyzeChord(midis);
+                if (chordName) {
+                    let isMatch = false;
+                    if (val === 'major') isMatch = chordName.endsWith('Major');
+                    else if (val === 'minor') isMatch = chordName.endsWith('minor');
+                    else if (val === 'm7') isMatch = chordName.includes('m7');
+                    else if (val === 'maj7') isMatch = chordName.includes('Maj7');
+                    else if (val === '7') isMatch = chordName.includes(' 7') && !chordName.includes('Maj7') && !chordName.includes('m7');
+                    else if (val === '5') isMatch = chordName.includes('5');
+                    else if (val === 'sus4') isMatch = chordName.includes('Sus4');
+                    else if (val === 'sus2') isMatch = chordName.includes('Sus2');
+
+                    if (isMatch) {
+                        const rootPart = chordName.split(' ')[0];
+                        const qualityPart = chordName.substring(rootPart.length).trim();
+                        const genericName = `Root ${qualityPart}`;
+                        
+                        if (!matches.some(m => m.type === typeKey && m.genericName === genericName)) {
+                            matches.push({
+                                type: typeKey,
+                                rotation: r,
+                                genericName: genericName,
+                                originalName: chordName
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        if (matches.length === 0) {
+            resultsDiv.innerHTML = '<div style="color: var(--dim); margin-top: 10px;">No pieces can create this chord quality.</div>';
+            return;
+        }
+
+        resultsDiv.innerHTML = matches.map(match => `
+            <div class="chord-match-item" data-type="${match.type}" data-rotation="${match.rotation}" 
+                 style="padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; margin-top: 8px; background: #1c202a; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.15s ease;">
+                <div>
+                    <strong style="color: #7fe0d0; font-size: 13px;">${match.genericName}</strong>
+                    <div style="font-size: 11px; color: var(--dim); margin-top: 2px;">Piece: <span style="color: #fff; font-weight: bold;">${match.type}</span> | Rotation: ${match.rotation}</div>
+                </div>
+                <span style="font-size: 11px; color: var(--accent); font-weight: bold; border: 1px solid var(--accent); padding: 2px 6px; border-radius: 4px; background: rgba(127, 224, 208, 0.05);">Use</span>
+            </div>
+        `).join('');
+
+        resultsDiv.querySelectorAll('.chord-match-item').forEach(item => {
+            item.onclick = () => {
+                const type = item.getAttribute('data-type');
+                const rotation = parseInt(item.getAttribute('data-rotation'));
+                this.selectPiece(type);
+                this.state.rotation = rotation;
+                this.updateGhost();
+
+                item.style.borderColor = 'var(--accent)';
+                setTimeout(() => {
+                    item.style.borderColor = 'var(--border)';
+                }, 300);
+            };
+        });
     }
 };

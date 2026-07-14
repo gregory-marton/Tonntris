@@ -99,6 +99,29 @@
                     <div id="piece-list"></div>
                 </div>
 
+                <!-- Sandbox Mode Chord Guide -->
+                <div id="sandbox-guide" style="display: none; margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 14px; color: var(--accent); display: flex; align-items: center; gap: 6px;">
+                        <span>🎵</span> Chord Guide
+                    </h3>
+                    <div class="control-group">
+                        <select id="chord-guide-select" style="width: 100%; padding: 6px; background: #1c202a; border: 1px solid var(--border); color: #fff; border-radius: 4px; font-family: monospace; font-size: 13px;">
+                            <option value="">-- Choose a Chord --</option>
+                            <option value="major">Major Triad</option>
+                            <option value="minor">minor Triad</option>
+                            <option value="m7">minor 7th</option>
+                            <option value="maj7">Major 7th</option>
+                            <option value="7">Dominant 7th</option>
+                            <option value="5">Perfect Fifth</option>
+                            <option value="sus4">Sus4 Triad</option>
+                            <option value="sus2">Sus2 Triad</option>
+                        </select>
+                    </div>
+                    <div id="chord-guide-results" style="margin-top: 10px; font-size: 12px; color: var(--dim); line-height: 1.4;">
+                        Select a chord to see which pieces and rotations create it.
+                    </div>
+                </div>
+
                 <div id="controls">
                     <p class="desktop-only"><strong>F T Y H B V</strong>: Move</p>
                     <p class="desktop-only"><strong>Space / G / Arrows</strong>: Rotate (Shift-Space: CCW)</p>

@@ -132,10 +132,15 @@ const App = {
         }
         document.getElementById('placement-controls').style.display = 'none';
         chopCtrls.style.display = 'none';
+        const guide = document.getElementById('sandbox-guide');
+        if (guide) {
+            guide.style.display = 'none';
+        }
 
         if (mode === 'chop') {
             document.getElementById('placement-controls').style.display = 'block';
             chopCtrls.style.display = 'block';
+            if (guide) guide.style.display = 'block';
             if (clickAction) clickAction.textContent = 'Place/Pick up';
             ChopMode.init();
         } else if (mode === 'puzzle') {
