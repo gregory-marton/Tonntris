@@ -94,8 +94,8 @@ const GravityMode = {
     },
 
     updateSpeed: function() {
-        // Decrease drop interval by 50ms per cleared line, min 100ms
-        this.state.dropInterval = Math.max(100, 1000 - this.state.linesCleared * 50);
+        // Decrease drop interval by 20ms per cleared line, min 100ms
+        this.state.dropInterval = Math.max(100, 1000 - this.state.linesCleared * 20);
         this.startTimer();
     },
 
