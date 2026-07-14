@@ -424,12 +424,22 @@ const ChopMode = {
                     let isMatch = false;
                     if (val === 'major') isMatch = chordName.endsWith('Major');
                     else if (val === 'minor') isMatch = chordName.endsWith('Minor');
-                    else if (val === 'm7') isMatch = chordName.includes('m7') && !chordName.includes('m7b5');
-                    else if (val === 'maj7') isMatch = chordName.includes('Maj7');
-                    else if (val === '7') isMatch = chordName.includes(' 7') && !chordName.includes('Maj7') && !chordName.includes('m7');
+                    else if (val === 'm7') isMatch = (chordName.includes('m7') || chordName.includes('m7 (shell)')) && !chordName.includes('m7b5') && !chordName.includes('m(Maj7)');
+                    else if (val === 'maj7') isMatch = chordName.includes('Maj7') && !chordName.includes('Maj7#5');
+                    else if (val === '7') isMatch = (chordName.includes(' 7') || chordName.includes('7 (shell)')) && !chordName.includes('Maj7') && !chordName.includes('m7') && !chordName.includes('7b5') && !chordName.includes('7#5') && !chordName.includes('7b9') && !chordName.includes('7#9') && !chordName.includes('7sus2') && !chordName.includes('7sus4');
                     else if (val === '5') isMatch = chordName.includes('5') || chordName.includes('Pentatonic Stack');
-                    else if (val === 'sus4') isMatch = chordName.includes('Sus4');
-                    else if (val === 'sus2') isMatch = chordName.includes('Sus2');
+                    else if (val === 'sus4') isMatch = chordName.includes('Sus4') || chordName.includes('7sus4');
+                    else if (val === 'sus2') isMatch = chordName.includes('Sus2') || chordName.includes('7sus2');
+                    else if (val === 'mMaj7') isMatch = chordName.includes('m(Maj7)');
+                    else if (val === '7b5') isMatch = chordName.includes('7b5');
+                    else if (val === '7#5') isMatch = chordName.includes('7#5');
+                    else if (val === 'maj7#5') isMatch = chordName.includes('Maj7#5');
+                    else if (val === 'add9') isMatch = chordName.includes('add9') && !chordName.includes('madd9');
+                    else if (val === 'madd9') isMatch = chordName.includes('madd9');
+                    else if (val === '7b9') isMatch = chordName.includes('7b9');
+                    else if (val === '7#9') isMatch = chordName.includes('7#9');
+                    else if (val === '7sus2') isMatch = chordName.includes('7sus2');
+                    else if (val === 'quartal') isMatch = chordName.includes('Quartal Stack');
 
                     if (isMatch) {
                         const rootPart = chordName.split(' ')[0];

@@ -107,14 +107,28 @@
                     <div class="control-group">
                         <select id="chord-guide-select" style="width: 100%; padding: 6px; background: #1c202a; border: 1px solid var(--border); color: #fff; border-radius: 4px; font-family: monospace; font-size: 13px;">
                             <option value="">-- Choose a Chord --</option>
-                            <option value="major">Major Triad</option>
-                            <option value="minor">Minor Triad</option>
-                            <option value="m7">Minor 7th</option>
-                            <option value="maj7">Major 7th</option>
-                            <option value="7">Dominant 7th</option>
-                            <option value="5">Perfect Fifth</option>
-                            <option value="sus4">Sus4 Triad</option>
-                            <option value="sus2">Sus2 Triad</option>
+                            <optgroup label="Basic Chords" style="background: #1c202a; color: var(--accent);">
+                                <option value="major">Major Triad</option>
+                                <option value="minor">Minor Triad</option>
+                                <option value="m7">Minor 7th</option>
+                                <option value="maj7">Major 7th</option>
+                                <option value="7">Dominant 7th</option>
+                                <option value="5">Perfect Fifth</option>
+                                <option value="sus4">Sus4 Triad</option>
+                                <option value="sus2">Sus2 Triad</option>
+                            </optgroup>
+                            <optgroup label="Advanced & Jazz Chords" style="background: #1c202a; color: #f0b97f;">
+                                <option value="mMaj7">Minor-Major 7th</option>
+                                <option value="7b5">Dominant 7b5</option>
+                                <option value="7#5">Augmented 7th (7#5)</option>
+                                <option value="maj7#5">Augmented Major 7th</option>
+                                <option value="add9">Major Add9</option>
+                                <option value="madd9">Minor Add9</option>
+                                <option value="7b9">Dominant 7b9 (shell)</option>
+                                <option value="7#9">Dominant 7#9 (Hendrix)</option>
+                                <option value="7sus2">7sus2 Chord</option>
+                                <option value="quartal">Quartal Stack</option>
+                            </optgroup>
                         </select>
                     </div>
                     <div id="chord-guide-results" style="margin-top: 10px; font-size: 12px; color: var(--dim); line-height: 1.4;">
