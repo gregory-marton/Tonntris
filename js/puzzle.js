@@ -40,9 +40,9 @@ const PuzzleMode = {
         const linesEl = document.getElementById('lines-count');
         if (linesEl) linesEl.textContent = this.state.linesCleared;
 
-        const best = parseInt(localStorage.getItem('tonntris_puzzle_best') || '0');
+        const best = parseInt(localStorage.getItem('tonncade_puzzle_best') || '0');
         if (this.state.linesCleared > best) {
-            localStorage.setItem('tonntris_puzzle_best', this.state.linesCleared.toString());
+            localStorage.setItem('tonncade_puzzle_best', this.state.linesCleared.toString());
         }
         const bestEl = document.getElementById('puzzle-best-count');
         if (bestEl) {

@@ -76,7 +76,7 @@ const MidiMode = {
         Render.init('tonnetz-svg');
         
         // Load best streak from localStorage
-        this.state.bestStreak = parseInt(localStorage.getItem('tonntris_midi_best') || '0');
+        this.state.bestStreak = parseInt(localStorage.getItem('tonncade_midi_best') || '0');
         this.updateStreakUI();
 
         // Load default melody if none is loaded
@@ -302,7 +302,7 @@ const MidiMode = {
 
         if (streak > this.state.bestStreak) {
             this.state.bestStreak = streak;
-            localStorage.setItem('tonntris_midi_best', streak.toString());
+            localStorage.setItem('tonncade_midi_best', streak.toString());
             this.updateStreakUI();
         }
     },

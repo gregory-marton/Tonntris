@@ -1,6 +1,6 @@
 {
-  "name": "Tonntris",
-  "short_name": "Tonntris",
+  "name": "Tonncade",
+  "short_name": "Tonncade",
   "description": "A musical falling-block game played on Euler's Tonnetz hex lattice grid.",
   "start_url": "./index.html",
   "display": "standalone",

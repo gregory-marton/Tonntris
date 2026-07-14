@@ -1,5 +1,5 @@
 /**
- * render.js - SVG rendering for Tonntris.
+ * render.js - SVG rendering for Tonncade.
  * Handles lattice drawing, piece ghosting, and labeling.
  */
 

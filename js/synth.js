@@ -1,5 +1,5 @@
 /**
- * synth.js - Web Audio engine for Tonntris.
+ * synth.js - Web Audio engine for Tonncade.
  * Ported and expanded from mockup.
  */
 

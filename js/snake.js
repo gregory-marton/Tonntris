@@ -23,7 +23,7 @@ const SnakeMode = {
         Render.init('tonnetz-svg');
 
         // Load high score
-        this.state.bestScore = parseInt(localStorage.getItem('tonntris_snake_best') || '0');
+        this.state.bestScore = parseInt(localStorage.getItem('tonncade_snake_best') || '0');
         this.updateStreakUI();
 
         this.setupDOMEvents();
@@ -395,7 +395,7 @@ const SnakeMode = {
 
         if (score > this.state.bestScore) {
             this.state.bestScore = score;
-            localStorage.setItem('tonntris_snake_best', score.toString());
+            localStorage.setItem('tonncade_snake_best', score.toString());
             this.updateStreakUI();
         }
     },

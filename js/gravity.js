@@ -259,9 +259,9 @@ const GravityMode = {
         const linesEl = document.getElementById('gravity-lines-count');
         if (linesEl) linesEl.textContent = this.state.linesCleared;
 
-        const best = parseInt(localStorage.getItem('tonntris_gravity_best') || '0');
+        const best = parseInt(localStorage.getItem('tonncade_gravity_best') || '0');
         if (this.state.linesCleared > best) {
-            localStorage.setItem('tonntris_gravity_best', this.state.linesCleared.toString());
+            localStorage.setItem('tonncade_gravity_best', this.state.linesCleared.toString());
         }
         const bestEl = document.getElementById('gravity-best-count');
         if (bestEl) {

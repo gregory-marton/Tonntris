@@ -6,6 +6,17 @@ const App = {
     currentMode: '',
 
     init: function() {
+        // Migrate localStorage keys from Tonntris to Tonncade to preserve player scores
+        const oldKeys = ['tonntris_gravity_best', 'tonntris_midi_best', 'tonntris_puzzle_best', 'tonntris_snake_best'];
+        oldKeys.forEach(oldKey => {
+            const val = localStorage.getItem(oldKey);
+            if (val !== null) {
+                const newKey = oldKey.replace('tonntris', 'tonncade');
+                localStorage.setItem(newKey, val);
+                localStorage.removeItem(oldKey);
+            }
+        });
+
         const options = document.querySelectorAll('.mode-option');
         options.forEach((opt, idx) => {
             opt.onclick = () => this.setMode(opt.getAttribute('data-mode'), idx);
@@ -361,10 +372,10 @@ const App = {
 
         if (host.includes('github.io')) {
             const username = host.split('.')[0];
-            const repo = path.split('/').filter(Boolean)[0] || 'Tonntris';
+            const repo = path.split('/').filter(Boolean)[0] || 'Tonncade';
 
-            const cachedSha = sessionStorage.getItem('tonntris_commit_sha');
-            const cachedParentSha = sessionStorage.getItem('tonntris_parent_sha') || '';
+            const cachedSha = sessionStorage.getItem('tonncade_commit_sha');
+            const cachedParentSha = sessionStorage.getItem('tonncade_parent_sha') || '';
             if (cachedSha && cachedParentSha) {
                 const currentSha = localVer.replace('git-', '');
                 if (currentSha !== cachedSha && currentSha !== cachedParentSha) {
@@ -380,8 +391,8 @@ const App = {
                     const shortSha = data.sha.substring(0, 7);
                     const parentSha = data.parents && data.parents[0] ? data.parents[0].sha.substring(0, 7) : '';
                     
-                    sessionStorage.setItem('tonntris_commit_sha', shortSha);
-                    sessionStorage.setItem('tonntris_parent_sha', parentSha);
+                    sessionStorage.setItem('tonncade_commit_sha', shortSha);
+                    sessionStorage.setItem('tonncade_parent_sha', parentSha);
                     
                     const currentSha = localVer.replace('git-', '');
                     if (currentSha !== shortSha && currentSha !== parentSha) {

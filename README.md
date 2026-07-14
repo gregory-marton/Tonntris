@@ -1,8 +1,8 @@
-# Tonntris
+# Tonncade
 
-A musical falling-block game played on Euler's *Tonnetz* — a hexagonal lattice of consonant musical intervals. Placing, moving, and rotating pieces behaves both as a spatial geometry puzzle **and** a music sequencer. 
+A musical hexagonal arcade game played on Euler's *Tonnetz* — a hexagonal lattice of consonant musical intervals. Placing, moving, and rotating pieces behaves both as a spatial geometry puzzle **and** a music sequencer. 
 
-Inspired by Alexey Pajitnov's classic game *Тетрис* (*Tetris*).
+Inspired by classic grid-based arcade games.
 
 Built in pure vanilla JavaScript, HTML5 SVG, and Web Audio API, the game runs completely client-side and can be run locally via a `file://` URL (no server or build steps needed) or installed as a standalone offline mobile app.
 
