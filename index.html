@@ -12,7 +12,15 @@
 <body>
     <div id="app">
         <header id="top-header">
-            <h1 id="game-title">Tonncade <span class="version-tag">local</span></h1>
+            <div style="display: flex; flex-direction: column; justify-content: center; gap: 2px;">
+                <h1 id="game-title" style="margin: 0; line-height: 1.1; font-size: 24px;">Tonncade <span class="version-tag">local</span></h1>
+                <a href="https://en.wikipedia.org/wiki/Tonnetz" target="_blank" rel="noopener noreferrer" 
+                   style="color: var(--dim); font-size: 11px; text-decoration: none; border-bottom: 1px dashed rgba(255, 255, 255, 0.2); transition: color 0.15s ease; width: fit-content;"
+                   onmouseover="this.style.color='var(--accent)'" 
+                   onmouseout="this.style.color='var(--dim)'">
+                    Based on Leonhard Euler's Tonnetz ↗
+                </a>
+            </div>
             <div id="mode-controls">
                 <div class="mode-slider">
                     <div class="mode-slider-active"></div>
