@@ -255,6 +255,10 @@
         assert(m7b5All.includes('A m7b5'), "A-C-Eb-G should return A m7b5");
         const sus7All = Tonnetz.analyzeAllChords([60, 65, 67, 70]);
         assert(sus7All.includes('C 7sus4'), "C-F-G-Bb should return C 7sus4");
+        const mMaj7All = Tonnetz.analyzeAllChords([60, 63, 67, 71]);
+        assert(mMaj7All.includes('C m(Maj7)'), "C-Eb-G-B should return C m(Maj7)");
+        const quartalAll = Tonnetz.analyzeAllChords([60, 63, 65, 70]);
+        assert(quartalAll.includes('C Quartal Stack'), "C-Eb-F-Bb should return C Quartal Stack");
 
         // Test App initialization and setMode crash prevention
         log('Testing App initialization...', 'group');

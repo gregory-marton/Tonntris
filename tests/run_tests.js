@@ -264,6 +264,20 @@ try {
         process.exit(1);
     }
 
+    // 5. C - Eb - G - B (60, 63, 67, 71) is C m(Maj7)
+    const mMaj7All = TonnetzObj.analyzeAllChords([60, 63, 67, 71]);
+    if (!mMaj7All.includes('C m(Maj7)')) {
+        console.error("FAIL: [60, 63, 67, 71] should yield C m(Maj7)! Got:", mMaj7All);
+        process.exit(1);
+    }
+
+    // 6. C - Eb - F - Bb (60, 63, 65, 70) is C Quartal Stack
+    const quartalAll = TonnetzObj.analyzeAllChords([60, 63, 65, 70]);
+    if (!quartalAll.includes('C Quartal Stack')) {
+        console.error("FAIL: [60, 63, 65, 70] should yield C Quartal Stack! Got:", quartalAll);
+        process.exit(1);
+    }
+
     console.log("PASS: Tonnetz.analyzeAllChords is fully correct!");
     process.exit(0);
 } catch (err) {
