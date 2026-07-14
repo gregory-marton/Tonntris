@@ -97,6 +97,7 @@ const ChopMode = {
     },
 
     refreshLattice: function() {
+        this.hidePlacedTooltip();
         const viewport = {
             minP: -15, maxP: 15,
             minQ: -15, maxQ: 15
