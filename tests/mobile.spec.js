@@ -327,6 +327,56 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     expect(placedCount).toBeGreaterThan(0);
   });
 
+  test('dragging a chord-guide result onto the board shows a candidate at that result\'s specific rotation', async ({ page }) => {
+    const width = page.viewportSize().width;
+    if (width >= 768) return;
+
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
+    await page.evaluate(dispatchAtHelpers);
+
+    const chordSelect = page.locator('#chord-guide-select');
+    await chordSelect.selectOption('major');
+    await expect(page.locator('.chord-match-item').first()).toBeVisible();
+
+    // Prefer a match with a non-zero rotation so the test actually exercises rotation plumbing;
+    // fall back to the first match if every one happens to be rotation 0.
+    const matchIndex = await page.evaluate(() => {
+      const items = Array.from(document.querySelectorAll('.chord-match-item'));
+      const idx = items.findIndex(i => parseInt(i.getAttribute('data-rotation')) !== 0);
+      return idx === -1 ? 0 : idx;
+    });
+    const match = page.locator('.chord-match-item').nth(matchIndex);
+    const expected = await match.evaluate(el => ({
+      type: el.getAttribute('data-type'),
+      rotation: parseInt(el.getAttribute('data-rotation')),
+    }));
+
+    const matchBox = await match.boundingBox();
+    const startX = matchBox.x + matchBox.width / 2;
+    const startY = matchBox.y + matchBox.height / 2;
+
+    const cell = page.locator('polygon.cell:not(.ghost)[data-p="0"][data-q="0"]');
+    const cellBox = await cell.boundingBox();
+    const endX = cellBox.x + cellBox.width / 2;
+    const endY = cellBox.y + cellBox.height / 2;
+
+    await page.evaluate(({ x, y }) => window.__dispatchTouchAt('touchstart', x, y), { x: startX, y: startY });
+    await page.evaluate(({ x, y }) => window.__dispatchTouchAt('touchmove', x, y), { x: startX, y: startY + 40 });
+    await page.evaluate(({ x, y }) => window.__dispatchTouchAt('touchmove', x, y), { x: endX, y: endY });
+    await page.waitForTimeout(50);
+    await page.evaluate(({ x, y }) => window.__dispatchTouchAt('touchend', x, y), { x: endX, y: endY });
+
+    // Left as a candidate, not placed, with the row's specific rotation
+    const placedCount = await page.locator('.placed-piece').count();
+    expect(placedCount).toBe(0);
+    const actual = await page.evaluate(() => ({
+      type: SandboxMode.state.selectedPiece,
+      rotation: SandboxMode.state.rotation,
+    }));
+    expect(actual.type).toBe(expected.type);
+    expect(actual.rotation).toBe(expected.rotation);
+  });
+
   test('dragging a carousel piece horizontally does not pan the board or place a piece', async ({ page }) => {
     const width = page.viewportSize().width;
     if (width >= 768) return;

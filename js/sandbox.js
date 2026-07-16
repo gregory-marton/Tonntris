@@ -21,7 +21,14 @@ const SandboxMode = {
         this.refreshLattice();
         this.setupEvents();
         this.setupGuide();
-        this.setupCarouselTouchGestures();
+        this.setupDragToCandidate('piece-list', '.piece-item', item => ({
+            key: item.getAttribute('data-key'),
+            rotation: 0
+        }));
+        this.setupDragToCandidate('chord-guide-results', '.chord-match-item', item => ({
+            key: item.getAttribute('data-type'),
+            rotation: parseInt(item.getAttribute('data-rotation'))
+        }));
 
         // Ensure single game-tooltip exists in DOM
         if (!document.querySelector('.game-tooltip')) {
@@ -439,35 +446,37 @@ const SandboxMode = {
         };
     },
 
-    setupCarouselTouchGestures: function() {
-        const list = document.getElementById('piece-list');
-        if (!list) return;
+    setupDragToCandidate: function(containerId, itemSelector, getPieceInfo) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
 
-        let dragKey = null;
+        let dragInfo = null;
         let dragStartX = 0;
         let dragStartY = 0;
         let isPlacingDrag = false;
 
-        list.addEventListener('touchstart', (e) => {
-            const item = e.target.closest('.piece-item');
+        container.addEventListener('touchstart', (e) => {
+            const item = e.target.closest(itemSelector);
             if (!item) return;
-            dragKey = item.getAttribute('data-key');
+            dragInfo = getPieceInfo(item);
             dragStartX = e.touches[0].clientX;
             dragStartY = e.touches[0].clientY;
             isPlacingDrag = false;
         }, { passive: true });
 
-        list.addEventListener('touchmove', (e) => {
-            if (!dragKey) return;
+        container.addEventListener('touchmove', (e) => {
+            if (!dragInfo) return;
             const dx = e.touches[0].clientX - dragStartX;
             const dy = e.touches[0].clientY - dragStartY;
 
             if (!isPlacingDrag) {
                 if (Math.abs(dy) > 20 && Math.abs(dy) > Math.abs(dx) * 1.5) {
                     isPlacingDrag = true;
-                    this.selectPiece(dragKey);
+                    this.state.selectedPiece = dragInfo.key;
+                    this.state.rotation = dragInfo.rotation;
+                    this.updatePaletteHighlight();
                 } else {
-                    return; // Predominantly horizontal — let the browser scroll the carousel natively
+                    return; // Predominantly horizontal — let the browser scroll the list natively
                 }
             }
 
@@ -482,11 +491,11 @@ const SandboxMode = {
             }
         }, { passive: false });
 
-        list.addEventListener('touchend', () => {
+        container.addEventListener('touchend', () => {
             // Releasing over the board leaves the piece as a selected candidate at the last
             // hovered cell (same state as tapping it in the palette) — the normal board
             // gestures (tap to rotate, swipe down to place) take over from here.
-            dragKey = null;
+            dragInfo = null;
             isPlacingDrag = false;
         });
     },
