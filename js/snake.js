@@ -84,7 +84,9 @@ const SnakeMode = {
         this.updateScoreUI();
         this.spawnGem();
         this.refreshBoard();
-        this.setStatus("Game running. Use T Y F H V B to steer!", "info");
+        const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const msg = isTouch ? "Game running. Use the controls to steer!" : "Game running. Use T Y F H V B to steer!";
+        this.setStatus(msg, "info");
         
         const pauseBtn = document.getElementById('snake-start-pause');
         if (pauseBtn) pauseBtn.textContent = "Pause";

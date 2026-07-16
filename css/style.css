@@ -337,6 +337,35 @@ button:hover {
     z-index: 2;
 }
 
+/* Snake's two-cluster D-Pad — shared structure regardless of orientation; the mobile
+   media queries below only override which edges it's pinned to (bottom in portrait,
+   left+right full-height in landscape). display:none/flex is toggled inline by JS. */
+#snake-mobile-controls {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    z-index: 100;
+    justify-content: space-between;
+    pointer-events: none; /* let taps in the empty middle pass through to the board */
+}
+
+.snake-pad-cluster {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: auto;
+}
+
+.snake-pad-cluster .m-btn {
+    width: 48px;
+    height: 48px;
+    font-size: 18px;
+    background: rgba(20, 22, 28, 0.9);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
 #gravity-controls {
     margin-bottom: 20px;
 }
@@ -827,6 +856,14 @@ button:hover {
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
     }
 
+    /* Snake's two-cluster D-Pad: hugs the bottom corners in portrait (shared structural
+       properties live in the unscoped #snake-mobile-controls rule near .active-item-arrow) */
+    #snake-mobile-controls {
+        bottom: 10px;
+        top: auto;
+        align-items: flex-end;
+    }
+
     polygon.active-note {
         fill: rgba(255, 255, 255, 0.4) !important;
         filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.6));
@@ -927,6 +964,7 @@ button:hover {
     flex-shrink: 0;
     margin-left: 8px;
 }
+}
 
 /* Touch-primary device styles: hide keyboard controls and desktop-only instructions */
 @media (hover: none) and (pointer: coarse) {
@@ -949,6 +987,21 @@ button:hover {
 @media (max-width: 950px) and (orientation: landscape) {
     #app {
         flex-direction: row;
+    }
+    #main-content {
+        position: relative; /* Containing block for floating overlays — see the portrait rule
+                                above for why this matters. */
+        height: 100dvh; /* Unlike portrait, the landscape header takes horizontal space (a side
+                            column), not vertical, so there's no top-bar height to subtract. */
+    }
+    #sidebar {
+        display: contents;
+    }
+    #game-container {
+        position: relative;
+        flex-grow: 1;
+        height: 100%;
+        overflow: hidden;
     }
     #top-header {
         height: 100dvh;
@@ -1050,5 +1103,11 @@ button:hover {
     }
     #mobile-always-visible.mobile-only {
         display: flex !important;
+    }
+
+    #snake-mobile-controls {
+        top: 10px;
+        bottom: 10px;
+        align-items: center; /* vertically center each cluster along the left/right edges */
     }
 }

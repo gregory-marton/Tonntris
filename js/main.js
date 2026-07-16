@@ -130,7 +130,7 @@ const App = {
         // Hide/show mobile dock based on mode and screen width
         const mobileDock = document.getElementById('mobile-dock');
         if (mobileDock) {
-            const isMobileWidth = window.matchMedia('(max-width: 767px)').matches;
+            const isMobileWidth = Render.isMobileViewport();
             if (isMobileWidth && mode === 'sandbox') {
                 mobileDock.style.display = 'block';
             } else {
@@ -141,7 +141,7 @@ const App = {
         // Hide/show mobile controls
         const mobileContainer = document.getElementById('mobile-controls');
         if (mobileContainer) {
-            const isMobileWidth = window.matchMedia('(max-width: 767px)').matches;
+            const isMobileWidth = Render.isMobileViewport();
             if (isMobileWidth && mode === 'gravity') {
                 mobileContainer.style.display = 'flex';
             } else {
@@ -194,13 +194,22 @@ const App = {
         const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
         const mobileContainer = document.getElementById('mobile-controls');
         
-        const isMobileWidth = window.matchMedia('(max-width: 767px)').matches;
+        const isMobileWidth = Render.isMobileViewport();
 
         if (mobileContainer) {
             if (isMobileWidth && this.currentMode === 'gravity') {
                 mobileContainer.style.display = 'flex';
             } else {
                 mobileContainer.style.display = 'none';
+            }
+        }
+
+        const snakeContainer = document.getElementById('snake-mobile-controls');
+        if (snakeContainer) {
+            if (isMobileWidth && this.currentMode === 'snake') {
+                snakeContainer.style.display = 'flex';
+            } else {
+                snakeContainer.style.display = 'none';
             }
         }
 
@@ -227,13 +236,18 @@ const App = {
 
             bindBtn('m-btn-ccw', ' ', 'Space', true);  // CCW Rotate (Shift + Space)
             bindBtn('m-btn-cw', ' ', 'Space', false);   // CW Rotate (Space)
-            bindBtn('m-btn-ul', 't');                             // Up-Left (t)
-            bindBtn('m-btn-ur', 'y');                             // Up-Right (y)
             bindBtn('m-btn-left', 'f');                           // Left (f)
             bindBtn('m-btn-right', 'h');                          // Right (h)
-            bindBtn('m-btn-dl', 'v');                             // Down-Left (v) / Soft-drop in Gravity
-            bindBtn('m-btn-dr', 'b');                             // Down-Right (b)
             bindBtn('m-btn-action', 'g', '', true);               // Shift-G to place/pick
+
+            // Snake's 6-direction pad — matches the T/Y/F/H/V/B keyboard scheme SnakeMode's
+            // own keydown handler already listens for.
+            bindBtn('snake-btn-ul', 't');
+            bindBtn('snake-btn-ur', 'y');
+            bindBtn('snake-btn-left', 'f');
+            bindBtn('snake-btn-right', 'h');
+            bindBtn('snake-btn-dl', 'v');
+            bindBtn('snake-btn-dr', 'b');
 
             // Gravity has no "place" action — reuse this same button/slot as its soft-drop
             // button instead, dispatching 'v' (the key GravityMode's own handler already
@@ -444,37 +458,9 @@ const App = {
 
         svg.addEventListener('touchstart', (e) => {
             if (this.currentMode === 'snake') {
+                // Steering is handled entirely by #snake-mobile-controls now — just block
+                // default scroll/zoom while playing.
                 e.preventDefault();
-                if (typeof SnakeMode !== 'undefined' && SnakeMode.state && SnakeMode.state.snake && SnakeMode.state.snake.length > 0) {
-                    const head = SnakeMode.state.snake[0];
-                    const headPos = Render.getScreenPos(head.p, head.q);
-                    const rect = svg.getBoundingClientRect();
-                    const touch = e.touches[0];
-                    const touchX = touch.clientX - rect.left;
-                    const touchY = touch.clientY - rect.top;
-                    const dx = touchX - headPos.x;
-                    const dy = touchY - headPos.y;
-                    
-                    let deg = Math.atan2(dy, dx) * 180 / Math.PI;
-                    if (deg < 0) deg += 360;
-                    
-                    const sector = Math.round(deg / 60) % 6;
-                    const dirs = [
-                        { p: 1, q: 0 },   // 0 deg: Right
-                        { p: 0, q: 1 },   // 60 deg: Down-Right
-                        { p: -1, q: 1 },  // 120 deg: Down-Left
-                        { p: -1, q: 0 },  // 180 deg: Left
-                        { p: 0, q: -1 },  // 240 deg: Up-Left
-                        { p: 1, q: -1 }   // 300 deg: Up-Right
-                    ];
-                    const newDir = dirs[sector];
-                    if (newDir && !SnakeMode.state.isGameOver && !SnakeMode.state.isPaused && !SnakeMode.state.isFlourishing) {
-                        const currentDir = SnakeMode.state.direction;
-                        if (newDir.p !== -currentDir.p || newDir.q !== -currentDir.q) {
-                            SnakeMode.state.nextDirection = newDir;
-                        }
-                    }
-                }
                 return;
             }
 
@@ -492,7 +478,7 @@ const App = {
 
             if (this.currentMode === 'gravity') return;
 
-            const isPhone = window.matchMedia('(max-width: 767px)').matches;
+            const isPhone = Render.isMobileViewport();
 
             if (e.touches.length === 1) {
                 isGesture = false;
@@ -588,7 +574,7 @@ const App = {
 
             if (this.currentMode === 'gravity') return;
 
-            const isPhone = window.matchMedia('(max-width: 767px)').matches;
+            const isPhone = Render.isMobileViewport();
 
             if (e.touches.length === 1 && !isGesture) {
                 const touch = e.touches[0];
@@ -689,7 +675,7 @@ const App = {
         }, { passive: false });
 
         svg.addEventListener('touchend', (e) => {
-            const isPhone = window.matchMedia('(max-width: 767px)').matches;
+            const isPhone = Render.isMobileViewport();
 
             if (e.touches.length === 0) {
                 isGesture = false;

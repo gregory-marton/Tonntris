@@ -140,10 +140,17 @@ const Render = {
     viewY: -300,
     zoom: 1,
 
+    // True for any viewport the mobile CSS breakpoints treat as "mobile" — portrait phones
+    // (max-width:767px) or landscape phones (max-width:950px, orientation:landscape). A plain
+    // max-width:767px check alone misses landscape phones, since the CSS uses a second,
+    // separate breakpoint for that orientation.
+    isMobileViewport: function() {
+        return window.matchMedia('(max-width: 767px), (max-width: 950px) and (orientation: landscape)').matches;
+    },
+
     // On phones, shrink the viewBox (relative to baseZoom) so each hex renders ~1.5x bigger.
     getResponsiveZoom: function(baseZoom = 1) {
-        const isPhone = window.matchMedia('(max-width: 767px)').matches;
-        return isPhone ? baseZoom / 1.5 : baseZoom;
+        return this.isMobileViewport() ? baseZoom / 1.5 : baseZoom;
     },
 
     // Screen-space bounding box of every playable (MIDI 0-127) hex for the current mode,

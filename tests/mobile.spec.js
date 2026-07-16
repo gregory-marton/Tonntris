@@ -883,6 +883,29 @@ test.describe('Mobile Viewport and Layout Tests', () => {
   // E. Drawer and Device Layout
   // ────────────────────────────────────────────────────────────────────────
 
+  test('drawer and carousel initialize correctly at landscape widths between the portrait and landscape breakpoints (768-950px)', async ({ page }) => {
+    await page.setViewportSize({ width: 852, height: 393 });
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
+
+    // Drawer handle should be a real, sized element — not collapsed to 0x0 because JS's
+    // narrower max-width:767px check thought this landscape width was "desktop" and skipped
+    // its setup, even though the CSS's separate 950px landscape breakpoint applies here.
+    const handleBox = await page.locator('#drawer-handle').boundingBox();
+    expect(handleBox).not.toBeNull();
+    expect(handleBox.width).toBeGreaterThan(0);
+    expect(handleBox.height).toBeGreaterThan(0);
+
+    // Clicking it should actually toggle the drawer (proves the click handler got bound)
+    const drawer = page.locator('#top-drawer');
+    await expect(drawer).not.toHaveClass(/expanded/);
+    await page.locator('#drawer-handle').click({ force: true });
+    await expect(drawer).toHaveClass(/expanded/);
+
+    // The piece carousel should have been relocated into the always-visible area and be visible
+    const pieceItem = page.locator('#sandbox-mobile-tools .piece-item').first();
+    await expect(pieceItem).toBeVisible();
+  });
+
   test('drawer handle is visible on phone, hidden on tablet; clicking it reveals title and modes', async ({ page }) => {
     const width = page.viewportSize().width;
     const drawerHandle = page.locator('#drawer-handle');
@@ -1014,11 +1037,13 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     await expect(drawer).not.toHaveClass(/expanded/);
   });
 
-  test('snake mode touch steering works without crashing', async ({ page }) => {
+  test('tapping the board in Snake mode no longer changes direction', async ({ page }) => {
     const width = page.viewportSize().width;
     if (width >= 768) return;
 
     await page.evaluate(() => document.querySelector('.mode-option[data-mode="snake"]').click());
+
+    const before = await page.evaluate(() => SnakeMode.state.nextDirection);
 
     await page.evaluate(() => {
       const el = document.getElementById('tonnetz-svg');
@@ -1029,7 +1054,68 @@ test.describe('Mobile Viewport and Layout Tests', () => {
       }));
     });
 
-    const nextDir = await page.evaluate(() => SnakeMode.state.nextDirection);
-    expect(nextDir).toBeDefined();
+    const after = await page.evaluate(() => SnakeMode.state.nextDirection);
+    expect(after).toEqual(before);
+  });
+
+  test('snake mobile pad visible only in Snake mode on phones', async ({ page }) => {
+    const controls = page.locator('#snake-mobile-controls');
+    const width = page.viewportSize().width;
+    if (width >= 768) return;
+
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
+    await expect(controls).toBeHidden();
+
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="snake"]').click());
+    await expect(controls).toBeVisible();
+  });
+
+  test('snake mobile pad buttons each set the correct direction', async ({ page }) => {
+    const width = page.viewportSize().width;
+    if (width >= 768) return;
+
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="snake"]').click());
+
+    const cases = [
+      { id: '#snake-btn-ul', expected: { p: -1, q: 1 } },
+      { id: '#snake-btn-ur', expected: { p: 0, q: 1 } },
+      { id: '#snake-btn-left', expected: { p: -1, q: 0 } },
+      { id: '#snake-btn-right', expected: { p: 1, q: 0 } },
+      { id: '#snake-btn-dl', expected: { p: 0, q: -1 } },
+      { id: '#snake-btn-dr', expected: { p: 1, q: -1 } },
+    ];
+
+    for (const { id, expected } of cases) {
+      // A zero vector is never the reverse of any real direction, so this never trips the
+      // no-reversal rule regardless of which case runs next.
+      await page.evaluate(() => {
+        SnakeMode.state.direction = { p: 0, q: 0 };
+        SnakeMode.state.nextDirection = { p: 0, q: 0 };
+      });
+
+      await page.locator(id).click();
+      const nextDir = await page.evaluate(() => SnakeMode.state.nextDirection);
+      expect(nextDir).toEqual(expected);
+    }
+  });
+
+  test('snake mobile pad clusters move to left/right edges in landscape', async ({ page }) => {
+    await page.setViewportSize({ width: 852, height: 393 });
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="snake"]').click());
+
+    // The pad hugs the edges of the game area (#main-content), not the raw viewport — in
+    // landscape the header is a real side column (not a 0-width unwrapped element like in
+    // portrait), so the game area's left edge isn't at viewport x=0.
+    const mainContentBox = await page.locator('#main-content').boundingBox();
+    const leftBox = await page.locator('.snake-pad-left').boundingBox();
+    const rightBox = await page.locator('.snake-pad-right').boundingBox();
+
+    expect(leftBox).not.toBeNull();
+    expect(rightBox).not.toBeNull();
+    expect(leftBox.x - mainContentBox.x).toBeLessThan(30);
+    expect(rightBox.x + rightBox.width).toBeGreaterThan(mainContentBox.x + mainContentBox.width - 30);
+    // Should span roughly the vertical middle of the screen, not hug the bottom
+    expect(leftBox.y).toBeLessThan(393 * 0.4);
+    expect(leftBox.y + leftBox.height).toBeGreaterThan(393 * 0.4);
   });
 });
