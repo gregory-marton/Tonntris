@@ -25,7 +25,7 @@ The real implementation evolved past the original spec text below in a few ways 
 
 ---
 
-## Next Round: Realtime-mode and Melody polish (backlog, not yet speced, 2026-07-15)
+## Next Round: Realtime-mode polish (backlog, not yet speced, 2026-07-15)
 
 Raw notes from real-device feedback, captured for the next brainstorming pass — none of this has been designed or planned yet:
 
@@ -34,7 +34,27 @@ Raw notes from real-device feedback, captured for the next brainstorming pass �
 - **Gravity and Blast modes** both need to show upcoming pieces (Blast already has a next-piece queue on desktop via `renderNextQueue`/`#piece-list` — needs a mobile-visible equivalent; Gravity has none at all).
 - **Snake mode**: no visible on-screen controls on mobile — needs a bottom control set similar to Gravity's pad. The existing tap/drag/turn touch-steering gesture (in `main.js`'s `touchstart` snake-mode branch) doesn't work predictably and needs investigation.
 - **Pause button** should be visible on mobile (currently not surfaced there).
-- **Melody (MIDI) mode**: the "notes to repeat" line updates nicely as the player plays ahead, but it's not clear which note was just played vs. which is next. Playing the full melody (and the example playthrough the player is meant to follow) should update this line in real time too, the same way it does when the player plays it themselves.
+
+---
+
+## Next Round: Melody mode note-list clarity + live tracking (spec, 2026-07-16)
+
+`#midi-note-list` (rendered by `MidiMode.updateDifficultyUI()` in `js/midi.js`) shows a window of past/current/future notes, pivoted on `this.state.userIndex` (the player's own repeat-progress). Two gaps, both scoped to this one rendering function and its two playback call sites:
+
+1. **Past notes render identically regardless of recency.** All notes in the past window (up to 3 back) get a flat `opacity: 0.6`, so the just-played note doesn't stand out from older history — making "which did I just play" harder to read at a glance than it should be.
+2. **The line is frozen during system-driven playback.** `playTargetSequence()` (the "Listen to the notes..." teaching playback) and `playPreview()` (the "Play Melody" full-song preview) each schedule a `setTimeout` per note that plays the sound and glows the board hex, but neither touches `#midi-note-list` — so during either kind of playback, the line just sits at whatever it last showed instead of scrubbing along with what's actually sounding, the way it does when the player is the one playing.
+
+### Fix
+
+1. **Graduated fade for past notes** — in `updateDifficultyUI()`, change the flat `opacity: 0.6` on past notes to fade by distance from `current`: 1-back → `0.85`, 2-back → `0.55`, 3-back → `0.3`. The "next" note's existing bold/accent styling is unchanged.
+2. **Live tracking during playback** — give `updateDifficultyUI` an optional `overrideIndex` parameter; when passed, it drives the past/current/future window instead of `this.state.userIndex`.
+   - `playTargetSequence()`'s per-note `setTimeout` also calls `this.updateDifficultyUI(i)`.
+   - `playPreview()`'s per-note `setTimeout` also calls `this.updateDifficultyUI(i)`.
+   - `stopPreview()` calls `this.updateDifficultyUI()` (no override) after `cleanupPlayback()`, restoring the line to reflect actual game progress (`userIndex`) once preview playback stops — whether it finished naturally or was stopped manually via the button. (`playTargetSequence`'s own finish callback already calls `updateDifficultyUI()` with no override, so that path needs no change.)
+
+### Testing
+
+- Unit or Playwright coverage for: past-note opacity is graduated (not flat) across the 3-note window; `updateDifficultyUI(i)` with an explicit override renders the window pivoted on `i` regardless of `state.userIndex`; `playPreview()` visibly advances `#midi-note-list`'s highlighted note as scheduled timeouts fire; `stopPreview()` restores the list to the `userIndex`-based view after preview playback ends.
 
 ---
 
