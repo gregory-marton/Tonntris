@@ -355,8 +355,16 @@ const GravityMode = {
             this.updateGhost();
         }
 
-        // Center viewBox on the cup and spawn area
-        Render.updateView(-720, -940, 1.8);
+        const cupCells = [];
+        for (let q = 0; q < 20; q++) {
+            for (let p = -20; p <= 10; p++) {
+                const col = p + Math.floor(q / 2);
+                if (col < -5 || col > 4) continue;
+                cupCells.push({ p, q });
+            }
+        }
+        const fit = Render.getFitView(cupCells, Render.HEX_R * 2);
+        Render.updateView(fit.viewX, fit.viewY, fit.zoom);
     },
 
     updateGhost: function() {

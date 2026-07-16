@@ -744,6 +744,80 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     expect(result.visible).toBe(result.total);
   });
 
+  const gravityCupCells = () => {
+    const cells = [];
+    for (let q = 0; q < 20; q++) {
+      for (let p = -20; p <= 10; p++) {
+        const col = p + Math.floor(q / 2);
+        if (col < -5 || col > 4) continue;
+        cells.push({ p, q });
+      }
+    }
+    return cells;
+  };
+
+  test('gravity board is centered within its viewBox on mobile', async ({ page }) => {
+    const width = page.viewportSize().width;
+    if (width >= 768) return;
+
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="gravity"]').click());
+
+    const result = await page.evaluate((cells) => {
+      const positions = cells.map(c => Render.getScreenPos(c.p, c.q));
+      const boardCenterX = (Math.min(...positions.map(pos => pos.x)) + Math.max(...positions.map(pos => pos.x))) / 2;
+      const boardCenterY = (Math.min(...positions.map(pos => pos.y)) + Math.max(...positions.map(pos => pos.y))) / 2;
+
+      const viewBoxCenterX = Render.viewX + (800 * Render.zoom) / 2;
+      const viewBoxCenterY = Render.viewY + (600 * Render.zoom) / 2;
+
+      return { boardCenterX, boardCenterY, viewBoxCenterX, viewBoxCenterY };
+    }, gravityCupCells());
+
+    expect(result.viewBoxCenterX).toBeCloseTo(result.boardCenterX, 0);
+    expect(result.viewBoxCenterY).toBeCloseTo(result.boardCenterY, 0);
+  });
+
+  test('every playable Gravity cup cell is visible on screen (none clipped by an undersized viewBox)', async ({ page }) => {
+    const width = page.viewportSize().width;
+    if (width >= 768) return;
+
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="gravity"]').click());
+
+    const svgBox = await page.locator('#tonnetz-svg').boundingBox();
+
+    const result = await page.evaluate(({ cells, containerRect }) => {
+      let visible = 0;
+      cells.forEach(({ p, q }) => {
+        const el = document.querySelector(`#tonnetz-svg polygon.cell[data-p="${p}"][data-q="${q}"]`);
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const cx = (r.left + r.right) / 2;
+        const cy = (r.top + r.bottom) / 2;
+        const inView = cx >= containerRect.x && cx <= containerRect.x + containerRect.width &&
+          cy >= containerRect.y && cy <= containerRect.y + containerRect.height;
+        if (inView) visible++;
+      });
+      return { total: cells.length, visible };
+    }, { cells: gravityCupCells(), containerRect: svgBox });
+
+    expect(result.total).toBeGreaterThan(0);
+    expect(result.visible).toBe(result.total);
+  });
+
+  test('gravity board zoom is fit to the cup, not a fixed value unrelated to its size', async ({ page }) => {
+    const width = page.viewportSize().width;
+    if (width >= 768) return;
+
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="gravity"]').click());
+
+    const result = await page.evaluate((cells) => {
+      const fit = Render.getFitView(cells, Render.HEX_R * 2);
+      return { actualZoom: Render.zoom, fitZoom: fit.zoom };
+    }, gravityCupCells());
+
+    expect(result.actualZoom).toBeCloseTo(result.fitZoom, 1);
+  });
+
   test('switching Sandbox -> Blast -> Sandbox on mobile leaves the piece palette visible in both', async ({ page }) => {
     const width = page.viewportSize().width;
     if (width >= 768) return;
