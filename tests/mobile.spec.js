@@ -1200,8 +1200,30 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     expect(rightBox).not.toBeNull();
     expect(leftBox.x - mainContentBox.x).toBeLessThan(30);
     expect(rightBox.x + rightBox.width).toBeGreaterThan(mainContentBox.x + mainContentBox.width - 30);
-    // Should span roughly the vertical middle of the screen, not hug the bottom
-    expect(leftBox.y).toBeLessThan(393 * 0.4);
-    expect(leftBox.y + leftBox.height).toBeGreaterThan(393 * 0.4);
+    // Real-device feedback: a vertically-centered pad sat "half way up" the screen and its
+    // top buttons were obscured by the browser/device frame. The pad should hug the bottom
+    // of the game area instead, not the vertical middle.
+    const mainContentBottom = mainContentBox.y + mainContentBox.height;
+    expect(mainContentBottom - (leftBox.y + leftBox.height)).toBeLessThan(40);
+    expect(mainContentBottom - (rightBox.y + rightBox.height)).toBeLessThan(40);
+  });
+
+  test('Snake and Gravity stats/controls panel uses compact button and text sizing in landscape', async ({ page }) => {
+    await page.setViewportSize({ width: 852, height: 393 });
+
+    for (const { mode, panel } of [
+      { mode: 'snake', panel: '#snake-controls' },
+      { mode: 'gravity', panel: '#gravity-controls' },
+    ]) {
+      await page.evaluate((m) => document.querySelector(`.mode-option[data-mode="${m}"]`).click(), mode);
+      // These compact values only ever existed in the portrait-only media query; landscape
+      // fell back to the full desktop button/text sizing, ballooning the panel over the board.
+      const btnFontSize = await page.locator(`${panel} .control-buttons button`).first()
+        .evaluate(el => getComputedStyle(el).fontSize);
+      expect(btnFontSize).toBe('11px');
+      const btnHeight = await page.locator(`${panel} .control-buttons button`).first()
+        .evaluate(el => getComputedStyle(el).height);
+      expect(btnHeight).toBe('24px');
+    }
   });
 });

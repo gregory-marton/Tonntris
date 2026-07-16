@@ -469,6 +469,32 @@ button:hover {
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     }
 
+    /* Compact text/button sizing for the stats/controls overlays. Landscape previously fell
+       back to full desktop button sizing here (no override existed outside the portrait-only
+       block below), ballooning #snake-controls/#gravity-controls over a third of the board. */
+    #blast-stats p, #gravity-controls p, #midi-controls p, #snake-controls p {
+        margin: 2px 0;
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    #blast-stats *, #gravity-controls *, #midi-controls *, #snake-controls * {
+        pointer-events: auto;
+    }
+
+    #gravity-controls .control-buttons, #snake-controls .control-buttons {
+        display: flex;
+        flex-direction: row !important;
+        gap: 6px;
+        margin-top: 4px;
+    }
+
+    #gravity-controls button, #snake-controls button {
+        padding: 4px 8px;
+        font-size: 11px;
+        height: 24px;
+    }
+
     #midi-controls {
         position: absolute;
         z-index: 100;
@@ -1187,10 +1213,17 @@ button:hover {
         display: flex !important;
     }
 
+    /* Real-device feedback: a vertically-centered pad sat "half way up" the screen and its
+       upper buttons were obscured by the device/browser frame near the top edge. Anchor the
+       clusters toward the bottom instead, and give the side edges the same env()-based
+       clearance already used for the bottom pad in portrait, in case a notch or gesture-bar
+       sits on one side in this orientation. */
     #snake-mobile-controls {
         top: 10px;
         bottom: 10px;
-        align-items: center; /* vertically center each cluster along the left/right edges */
+        left: calc(10px + env(safe-area-inset-left, 0px));
+        right: calc(10px + env(safe-area-inset-right, 0px));
+        align-items: flex-end;
     }
 
     /* Gravity's pad splits into two clusters (left/right edges), duplicating the down button
@@ -1200,6 +1233,8 @@ button:hover {
     #mobile-controls {
         top: 10px;
         bottom: 10px;
+        left: calc(10px + env(safe-area-inset-left, 0px));
+        right: calc(10px + env(safe-area-inset-right, 0px));
         flex-direction: row;
         background: none;
         border: none;
