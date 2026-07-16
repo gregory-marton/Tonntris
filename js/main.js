@@ -436,6 +436,9 @@ const App = {
         let lastTouchCell = null;
         let preTouchHoverCell = null;
 
+        let doubleTapLastCell = null;
+        let doubleTapLastTime = 0;
+
         let touchStartX = 0;
         let touchStartY = 0;
         let touchStartTime = 0;
@@ -725,6 +728,34 @@ const App = {
                         }
                     }
                 } else if (isTap) {
+                    const now = Date.now();
+                    const isDoubleTap = this.currentMode === 'sandbox' && touchStartCell &&
+                        doubleTapLastCell && doubleTapLastCell.p === touchStartCell.p && doubleTapLastCell.q === touchStartCell.q &&
+                        (now - doubleTapLastTime) < 350;
+
+                    if (isDoubleTap) {
+                        // Consume it so a third tap doesn't chain into another double-tap.
+                        doubleTapLastCell = null;
+                        const tapCell = touchStartCell;
+                        const isOnPlacedPiece = SandboxMode.state.placedPieces.some(piece => {
+                            const cells = Pieces.getAbsoluteCells(piece.type, piece.p, piece.q, piece.rotation);
+                            return cells.some(c => c.p === tapCell.p && c.q === tapCell.q);
+                        });
+
+                        if (isOnPlacedPiece) {
+                            // Pick up, regardless of whether a piece is already selected — unlike
+                            // the single-tap pickup path below, which only fires when one is.
+                            modeObj.state.hoverCell = tapCell;
+                            SandboxMode.pickupPieceAt(tapCell.p, tapCell.q);
+                        } else if (pieceType && SandboxMode.canPlace(pieceType, tapCell.p, tapCell.q, SandboxMode.state.rotation)) {
+                            SandboxMode.placePiece(tapCell.p, tapCell.q);
+                        }
+                        return;
+                    }
+
+                    doubleTapLastCell = touchStartCell;
+                    doubleTapLastTime = now;
+
                     if (pieceType) {
                         const tapCell = touchStartCell;
                         const ghostCells = tapCell

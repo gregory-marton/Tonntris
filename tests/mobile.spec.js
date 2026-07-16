@@ -680,6 +680,71 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     expect(placedCount).toBe(0);
   });
 
+  test('double-tap on a placed piece picks it up, even with nothing currently selected', async ({ page }) => {
+    const width = page.viewportSize().width;
+    if (width >= 768) return;
+
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
+    await page.evaluate(touchHelpers);
+
+    // Select a piece and place it via swipe down
+    await page.locator('.piece-item').first().click({ force: true });
+    await page.evaluate(() => {
+      SandboxMode.state.hoverCell = { p: 0, q: 0 };
+      SandboxMode.updateGhost();
+    });
+    const cell = page.locator('polygon.cell:not(.ghost)[data-p="0"][data-q="0"]');
+    const box = await cell.boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: cx, y: cy });
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchmove', x, y), { x: cx, y: cy + 70 });
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy + 70 });
+    expect(await page.locator('.placed-piece').count()).toBeGreaterThan(0);
+
+    // Deselect entirely — a plain single tap can't pick this piece back up (main.js only
+    // does that when a piece is already selected); double-tap should work regardless.
+    await page.evaluate(() => { SandboxMode.state.selectedPiece = null; });
+
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: cx, y: cy });
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy });
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: cx, y: cy });
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy });
+
+    expect(await page.locator('.placed-piece').count()).toBe(0);
+    const selectedAfter = await page.evaluate(() => SandboxMode.state.selectedPiece);
+    expect(selectedAfter).not.toBeNull();
+  });
+
+  test('double-tap on an empty cell places the selected candidate there', async ({ page }) => {
+    const width = page.viewportSize().width;
+    if (width >= 768) return;
+
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
+    await page.evaluate(touchHelpers);
+
+    await page.locator('.piece-item').first().click({ force: true });
+    // Put the candidate somewhere other than the target cell, so the first tap's
+    // existing "move candidate here" behavior doesn't coincidentally already satisfy this.
+    await page.evaluate(() => {
+      SandboxMode.state.hoverCell = { p: 3, q: 3 };
+      SandboxMode.updateGhost();
+    });
+
+    const cell = page.locator('polygon.cell:not(.ghost)[data-p="0"][data-q="0"]');
+    const box = await cell.boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: cx, y: cy });
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy });
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: cx, y: cy });
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy });
+
+    const placed = await page.locator('.placed-piece').count();
+    expect(placed).toBeGreaterThan(0);
+  });
+
   // ────────────────────────────────────────────────────────────────────────
   // F. Blast Mode Mobile Layout
   // ────────────────────────────────────────────────────────────────────────
