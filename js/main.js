@@ -295,11 +295,12 @@ const App = {
                 const drawerInjected = document.getElementById('drawer-injected-tools');
                 const palette = document.getElementById('palette');
                 const guide = document.getElementById('sandbox-guide');
-                
+                const sidebar = document.getElementById('sidebar');
+
                 const midiUpload = document.getElementById('midi-upload-group');
                 const midiStats = document.getElementById('midi-stats-group');
                 const midiActions = document.getElementById('midi-actions-group');
-                
+
                 if (drawerInjected) drawerInjected.style.display = 'none';
 
                 if (this.currentMode === 'sandbox') {
@@ -307,6 +308,7 @@ const App = {
                         sandboxTools.style.display = 'flex';
                         if (palette) {
                             palette.style.display = 'block';
+                            palette.classList.remove('floating-queue');
                             sandboxTools.appendChild(palette);
                         }
                         // Move just the chord dropdown (not the label/instructions) into the always-visible area
@@ -334,9 +336,32 @@ const App = {
                         drawerInjected.style.display = 'block';
                         drawerInjected.appendChild(midiUpload);
                     }
+                    // #palette (Sandbox's carousel) isn't used in MIDI mode — return it home and
+                    // hide it so it doesn't stay stranded inside a hidden sandboxTools.
+                    if (palette && sidebar && palette.parentElement !== sidebar) sidebar.appendChild(palette);
+                    if (palette) {
+                        palette.style.display = 'none';
+                        palette.classList.remove('floating-queue');
+                    }
+                } else if (this.currentMode === 'blast') {
+                    if (sandboxTools) sandboxTools.style.display = 'none';
+                    if (midiTools) midiTools.style.display = 'none';
+                    // #palette doubles as Blast's next-piece queue (BlastMode.renderNextQueue
+                    // writes into #piece-list) — return it from wherever a previous mode left it
+                    // and show it as a floating overlay over the board.
+                    if (palette && sidebar && palette.parentElement !== sidebar) sidebar.appendChild(palette);
+                    if (palette) {
+                        palette.style.display = 'block';
+                        palette.classList.add('floating-queue');
+                    }
                 } else {
                     if (sandboxTools) sandboxTools.style.display = 'none';
                     if (midiTools) midiTools.style.display = 'none';
+                    if (palette && sidebar && palette.parentElement !== sidebar) sidebar.appendChild(palette);
+                    if (palette) {
+                        palette.style.display = 'none';
+                        palette.classList.remove('floating-queue');
+                    }
                 }
             } else {
                 // On desktop, ensure the drawer doesn't act like a drawer

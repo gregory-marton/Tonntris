@@ -559,6 +559,9 @@ button:hover {
     }
 
     #main-content {
+        position: relative; /* Containing block for floating overlays like #blast-stats and
+                                .floating-queue — without this they fall back to the viewport
+                                and land near/behind the header instead of over the board. */
         flex-direction: column;
         height: calc(100dvh - 40px);
     }
@@ -599,6 +602,52 @@ button:hover {
         flex-direction: column;
         gap: 4px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Blast Mode's next-piece queue, floated top-right (stats badge occupies top-left) */
+    #palette.floating-queue {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        left: auto;
+        z-index: 100;
+        flex-grow: 0;
+        max-width: 45%;
+        max-height: 180px;
+        overflow-y: auto;
+        background: rgba(20, 22, 28, 0.85);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 10px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    #palette.floating-queue h3 {
+        font-size: 11px;
+        margin: 0 0 6px 0;
+        color: var(--accent);
+    }
+
+    #palette.floating-queue #piece-list {
+        display: flex;
+        flex-direction: row;
+        gap: 6px;
+    }
+
+    #palette.floating-queue .piece-item {
+        width: 44px;
+        padding: 4px;
+        flex-shrink: 0;
+    }
+
+    #palette.floating-queue .piece-preview {
+        height: 32px;
+    }
+
+    #palette.floating-queue .piece-name {
+        font-size: 9px;
     }
 
     /* MIDI Controls all the way across top */
