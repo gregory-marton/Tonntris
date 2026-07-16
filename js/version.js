@@ -1,1 +1,1 @@
-const GIT_VERSION = 'git-13fe89c';
+const GIT_VERSION = 'git-583b4b6';
