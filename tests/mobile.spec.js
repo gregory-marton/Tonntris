@@ -253,12 +253,13 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     };
   `;
 
-  test('dragging a carousel piece downward onto the board places it', async ({ page }) => {
+  test('dragging a carousel piece onto the board shows a candidate placement, still tappable/rotatable, and only places on swipe down', async ({ page }) => {
     const width = page.viewportSize().width;
     if (width >= 768) return;
 
     await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
     await page.evaluate(dispatchAtHelpers);
+    await page.evaluate(touchHelpers);
 
     let placedCount = await page.locator('.placed-piece').count();
     expect(placedCount).toBe(0);
@@ -273,12 +274,32 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     const endX = cellBox.x + cellBox.width / 2;
     const endY = cellBox.y + cellBox.height / 2;
 
+    // Drag from the carousel onto the board
     await page.evaluate(({ x, y }) => window.__dispatchTouchAt('touchstart', x, y), { x: startX, y: startY });
     await page.evaluate(({ x, y }) => window.__dispatchTouchAt('touchmove', x, y), { x: startX, y: startY + 40 });
     await page.evaluate(({ x, y }) => window.__dispatchTouchAt('touchmove', x, y), { x: endX, y: endY });
     await page.waitForTimeout(50);
     await page.evaluate(({ x, y }) => window.__dispatchTouchAt('touchend', x, y), { x: endX, y: endY });
 
+    // Releasing over the board should leave a candidate (selected + ghosted), not place it
+    placedCount = await page.locator('.placed-piece').count();
+    expect(placedCount).toBe(0);
+    const selectedPiece = await page.evaluate(() => SandboxMode.state.selectedPiece);
+    expect(selectedPiece).not.toBeNull();
+
+    // A tap on the candidate should still rotate it, not place it
+    const rotBefore = await page.evaluate(() => SandboxMode.state.rotation);
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: endX, y: endY });
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: endX, y: endY });
+    const rotAfter = await page.evaluate(() => SandboxMode.state.rotation);
+    expect(rotAfter).toBe((rotBefore + 1) % 6);
+    placedCount = await page.locator('.placed-piece').count();
+    expect(placedCount).toBe(0);
+
+    // A swipe down should place it, same as any other candidate
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: endX, y: endY });
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchmove', x, y), { x: endX, y: endY + 70 });
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: endX, y: endY + 70 });
     placedCount = await page.locator('.placed-piece').count();
     expect(placedCount).toBeGreaterThan(0);
   });

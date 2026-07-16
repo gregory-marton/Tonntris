@@ -482,12 +482,9 @@ const SandboxMode = {
         }, { passive: false });
 
         list.addEventListener('touchend', () => {
-            if (isPlacingDrag && this.state.selectedPiece) {
-                const { p, q } = this.state.hoverCell;
-                if (this.canPlace(this.state.selectedPiece, p, q, this.state.rotation)) {
-                    this.placePiece(p, q);
-                }
-            }
+            // Releasing over the board leaves the piece as a selected candidate at the last
+            // hovered cell (same state as tapping it in the palette) — the normal board
+            // gestures (tap to rotate, swipe down to place) take over from here.
             dragKey = null;
             isPlacingDrag = false;
         });
