@@ -10,6 +10,51 @@ const { test, expect } = require('@playwright/test');
  * - Absence of bad states (no off-screen elements, no accidental placements)
  */
 
+// Measures board cell visibility as the player actually experiences it: of the cells whose
+// center point falls geometrically within the viewport (the board's own pan/zoom already
+// puts most of the lattice off-screen — that's normal and not what this checks), how many
+// are NOT covered by any currently-rendered floating overlay panel. This is a direct measure
+// of "how much of the board is visible," not a proxy like an individual panel's own
+// width/height, which can pass while the panel still visually buries the board (the Snake
+// landscape regression this was written in response to).
+async function countVisibleCells(page) {
+  return page.evaluate(() => {
+    const overlaySelectors = [
+      '#blast-stats', '#gravity-controls', '#snake-controls',
+      // #mobile-controls/#snake-mobile-controls are transparent, pointer-events:none
+      // containers spanning most of the game area edge-to-edge — only their individual
+      // .m-btn children actually paint anything opaque, so those are what should count as
+      // occluding, not the whole (mostly empty) container rect.
+      '#mobile-controls .m-btn', '#snake-mobile-controls .m-btn',
+      '#palette.floating-queue', '#midi-controls',
+    ];
+    const overlayRects = [];
+    for (const sel of overlaySelectors) {
+      document.querySelectorAll(sel).forEach(el => {
+        const style = getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return;
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) overlayRects.push(rect);
+      });
+    }
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let inViewport = 0;
+    let unobscured = 0;
+    document.querySelectorAll('polygon.cell:not(.ghost)').forEach(cell => {
+      const rect = cell.getBoundingClientRect();
+      const cx = rect.x + rect.width / 2;
+      const cy = rect.y + rect.height / 2;
+      if (cx < 0 || cy < 0 || cx > vw || cy > vh) return;
+      inViewport++;
+      const covered = overlayRects.some(r => cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom);
+      if (!covered) unobscured++;
+    });
+    return { inViewport, unobscured };
+  });
+}
+
 test.describe('Mobile Viewport and Layout Tests', () => {
   test.beforeEach(async ({ page }) => {
     page.on('console', msg => console.log(`[BROWSER] ${msg.text()}`));
@@ -1374,7 +1419,7 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     expect(pauseBox.width).toBeLessThan(100);
   });
 
-  test('Snake and Gravity stats/controls panel uses compact button and text sizing in landscape', async ({ page }) => {
+  test('Snake and Gravity stats/controls panel stays a small fraction of the board in landscape', async ({ page }) => {
     await page.setViewportSize({ width: 852, height: 393 });
 
     for (const { mode, panel } of [
@@ -1382,14 +1427,58 @@ test.describe('Mobile Viewport and Layout Tests', () => {
       { mode: 'gravity', panel: '#gravity-controls' },
     ]) {
       await page.evaluate((m) => document.querySelector(`.mode-option[data-mode="${m}"]`).click(), mode);
-      // These compact values only ever existed in the portrait-only media query; landscape
-      // fell back to the full desktop button/text sizing, ballooning the panel over the board.
-      const btnFontSize = await page.locator(`${panel} .control-buttons button`).first()
-        .evaluate(el => getComputedStyle(el).fontSize);
-      expect(btnFontSize).toBe('11px');
-      const btnHeight = await page.locator(`${panel} .control-buttons button`).first()
-        .evaluate(el => getComputedStyle(el).height);
-      expect(btnHeight).toBe('24px');
+      const mainContentBox = await page.locator('#main-content').boundingBox();
+      const panelBox = await page.locator(panel).boundingBox();
+      const panelArea = panelBox.width * panelBox.height;
+      const boardArea = mainContentBox.width * mainContentBox.height;
+      // Landscape previously fell back to full desktop button/text sizing (no compact override
+      // existed outside the portrait-only block), ballooning this panel over a third of the
+      // board. The real invariant is "stays a small corner of the board," not any particular
+      // pixel value for the buttons/text that happen to achieve that today.
+      expect(panelArea / boardArea).toBeLessThan(0.15);
     }
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
+  // H. Visible Board Coverage — does an overlay panel actually bury the board?
+  // ────────────────────────────────────────────────────────────────────────
+
+  test('Snake board keeps a consistent, mostly-unobscured cell count in landscape with the dock closed', async ({ page }) => {
+    await page.setViewportSize({ width: 852, height: 393 });
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="snake"]').click());
+    await expect(page.locator('#top-drawer')).not.toHaveClass(/expanded/);
+
+    // Small floating panels (stats/controls, the D-pad) are expected to cover a few cells at
+    // the edges of the visible area; anything that eats a large chunk of it (like the
+    // panel-ballooning regression this suite just caught) should fail this.
+    const { inViewport, unobscured } = await countVisibleCells(page);
+    expect(unobscured).toBeGreaterThan(inViewport * 0.85);
+  });
+
+  test('Blast board keeps a consistent, mostly-unobscured cell count in landscape with the dock closed', async ({ page }) => {
+    await page.setViewportSize({ width: 852, height: 393 });
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="blast"]').click());
+    await expect(page.locator('#top-drawer')).not.toHaveClass(/expanded/);
+
+    const { inViewport, unobscured } = await countVisibleCells(page);
+    expect(unobscured).toBeGreaterThan(inViewport * 0.85);
+  });
+
+  test('opening the dock never increases the visible cell count, and closing it always recovers the same count', async ({ page }) => {
+    await page.setViewportSize({ width: 852, height: 393 });
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="snake"]').click());
+
+    const closedBefore = (await countVisibleCells(page)).unobscured;
+
+    await page.locator('#drawer-handle').click({ force: true });
+    await expect(page.locator('#top-drawer')).toHaveClass(/expanded/);
+    const open = (await countVisibleCells(page)).unobscured;
+
+    await page.locator('#drawer-handle').click({ force: true });
+    await expect(page.locator('#top-drawer')).not.toHaveClass(/expanded/);
+    const closedAfter = (await countVisibleCells(page)).unobscured;
+
+    expect(open).toBeLessThanOrEqual(closedBefore);
+    expect(closedAfter).toBe(closedBefore);
   });
 });

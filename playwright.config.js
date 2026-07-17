@@ -24,19 +24,19 @@ module.exports = {
     },
     {
       name: 'Mobile Chrome',
-      use: { 
+      use: {
         ...devices['Pixel 5'],
         hasTouch: true,
       },
-      testMatch: /.*mobile\.spec\.js/,
+      testMatch: /.*(mobile|invariants)\.spec\.js/,
     },
     {
       name: 'Tablet Chrome',
-      use: { 
+      use: {
         ...devices['Galaxy Tab S4'],
         hasTouch: true,
       },
-      testMatch: /.*mobile\.spec\.js/,
+      testMatch: /.*(mobile|invariants)\.spec\.js/,
     }
   ],
   webServer: {

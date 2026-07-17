@@ -361,6 +361,54 @@ try {
     }
     console.log("PASS: Responsive Header CSS rules test succeeded!");
 
+    // INVARIANT (see docs/invariants.md, "Piece geometry validity"): every piece's cells are
+    // connected (no floating sub-parts), non-overlapping, and closed under six 60° rotations
+    // (a hex piece rotated a full turn is exactly itself again) — for every type, at every
+    // rotation.
+    console.log("Running Piece geometry validity (invariants.md) tests...");
+    const PiecesObj = vm.runInContext("Pieces", context);
+    const cellKey = (c) => `${c.p},${c.q}`;
+
+    for (const typeKey of Object.keys(PiecesObj.TYPES)) {
+        for (let rot = 0; rot < 6; rot++) {
+            const cells = PiecesObj.getAbsoluteCells(typeKey, 0, 0, rot);
+
+            const keys = cells.map(cellKey);
+            if (new Set(keys).size !== keys.length) {
+                console.error(`FAIL: Piece '${typeKey}' at rotation ${rot} has overlapping cells: ${keys.join(' ')}`);
+                process.exit(1);
+            }
+
+            const cellSet = new Set(keys);
+            const visited = new Set([keys[0]]);
+            const stack = [cells[0]];
+            while (stack.length) {
+                const cur = stack.pop();
+                for (const n of TonnetzObj.getNeighbors(cur.p, cur.q)) {
+                    const nk = cellKey(n);
+                    if (cellSet.has(nk) && !visited.has(nk)) {
+                        visited.add(nk);
+                        stack.push(n);
+                    }
+                }
+            }
+            if (visited.size !== cells.length) {
+                console.error(`FAIL: Piece '${typeKey}' at rotation ${rot} is not connected: ${keys.join(' ')} (reached only ${[...visited].join(' ')})`);
+                process.exit(1);
+            }
+        }
+
+        // Six 60° rotations should return to the piece's original shape (set-equal, not
+        // necessarily in the same array order).
+        const original = new Set(PiecesObj.TYPES[typeKey].cells.map(cellKey));
+        const rotatedSixTimes = new Set(PiecesObj.getAbsoluteCells(typeKey, 0, 0, 6).map(cellKey));
+        if (original.size !== rotatedSixTimes.size || [...original].some(k => !rotatedSixTimes.has(k))) {
+            console.error(`FAIL: Piece '${typeKey}' is not closed under six rotations — original: ${[...original].join(' ')}, after 6 rotations: ${[...rotatedSixTimes].join(' ')}`);
+            process.exit(1);
+        }
+    }
+    console.log("PASS: Every piece is connected, non-overlapping, and closed under rotation at all 6 orientations!");
+
     process.exit(0);
 } catch (err) {
     console.error("FAIL: App test failed with error:", err.stack || err.message);
