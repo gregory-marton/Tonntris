@@ -195,6 +195,41 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     expect(resultCount).toBeGreaterThan(0);
   });
 
+  test('chord picker stays fully within the viewport in landscape Sandbox, even with results showing', async ({ page }) => {
+    await page.setViewportSize({ width: 852, height: 393 });
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
+
+    await page.locator('#chord-guide-select').selectOption('major');
+    await expect(page.locator('.chord-match-item').first()).toBeVisible({ timeout: 3000 });
+
+    // #sandbox-mobile-tools #piece-list previously claimed height:100%, leaving nothing for
+    // the chord picker below it — it's the carousel that should scroll internally if space is
+    // tight, not the chord picker that gets pushed below the fold.
+    const resultsBox = await page.locator('#chord-guide-results').boundingBox();
+    expect(resultsBox).not.toBeNull();
+    expect(resultsBox.y + resultsBox.height).toBeLessThanOrEqual(393 + 1);
+    // Uncapped in landscape today, results claims far more height than its own content needs
+    // (whatever's left after the carousel's flex-shrink), squeezing the carousel more than
+    // necessary. It should be capped like portrait's #chord-guide-results is (150px).
+    expect(resultsBox.height).toBeLessThanOrEqual(150);
+
+    const resetBox = await page.locator('#chord-guide-reset').boundingBox();
+    expect(resetBox).not.toBeNull();
+    expect(resetBox.y).toBeGreaterThanOrEqual(0);
+    expect(resetBox.y + resetBox.height).toBeLessThanOrEqual(393 + 1);
+
+    // The carousel itself should still be scrollable to reach every piece, not silently
+    // clipped once the (potentially long, uncapped) results list squeezes its box down.
+    const scrollCheck = await page.evaluate(() => {
+      const palette = document.getElementById('palette');
+      return { scrollHeight: palette.scrollHeight, clientHeight: palette.clientHeight };
+    });
+    expect(scrollCheck.scrollHeight).toBeGreaterThan(0);
+    const lastPiece = page.locator('.piece-item').last();
+    await lastPiece.scrollIntoViewIfNeeded();
+    await expect(lastPiece).toBeVisible();
+  });
+
   test('chord guide reset (X) button is reachable and dismisses the guide on mobile', async ({ page }) => {
     const width = page.viewportSize().width;
     if (width >= 768) return;

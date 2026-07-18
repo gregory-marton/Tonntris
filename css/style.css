@@ -1159,13 +1159,27 @@ button:hover {
         flex-direction: column;
         height: 100%;
     }
+    /* piece-list is the flexible, scrollable element here — height:100% previously meant it
+       (and, via default flex-shrink, the chord picker fighting it for space) always exactly
+       filled the container, so an uncapped #chord-guide-results grew to whatever it wanted
+       and squeezed the carousel down to a sliver instead of just scrolling for more room. */
     #sandbox-mobile-tools #piece-list {
         flex-direction: column;
         flex-wrap: nowrap;
-        height: 100%;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
     }
     #sandbox-mobile-tools .piece-item {
         margin-bottom: 8px;
+    }
+    #sandbox-mobile-tools .control-group {
+        flex-shrink: 0;
+    }
+    #sandbox-mobile-tools #chord-guide-results {
+        flex-shrink: 0;
+        max-height: 150px;
+        overflow-y: auto;
     }
     #drawer-handle {
         width: 24px;
