@@ -84,9 +84,7 @@ const SnakeMode = {
         this.updateScoreUI();
         this.spawnGem();
         this.refreshBoard();
-        const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-        const msg = isTouch ? "Game running. Use the controls to steer!" : "Game running. Use T Y F H V B to steer!";
-        this.setStatus(msg, "info");
+        this.updateDirectionHighlight();
         
         const pauseBtn = document.getElementById('snake-start-pause');
         if (pauseBtn) pauseBtn.textContent = "Pause";
@@ -107,10 +105,8 @@ const SnakeMode = {
                 this.state.timer = null;
             }
             if (pauseBtn) pauseBtn.textContent = "Resume";
-            this.setStatus("Game Paused.", "info");
         } else {
             if (pauseBtn) pauseBtn.textContent = "Pause";
-            this.setStatus("Game running...", "info");
             this.startTimer();
         }
     },
@@ -272,8 +268,6 @@ const SnakeMode = {
             this.state.timer = null;
         }
 
-        this.setStatus("Game Over! Click Restart to play again.", "error");
-        
         // Play sad game over note
         Synth.playNote(36, 0, 0.8, 0.5); // Low C2
     },
@@ -284,8 +278,6 @@ const SnakeMode = {
             clearInterval(this.state.timer);
             this.state.timer = null;
         }
-
-        this.setStatus("Incredible! You filled the board! 🏆", "success");
 
         // Play celebratory arpeggio
         const victoryNotes = [60, 64, 67, 72, 76, 79, 84];
@@ -341,6 +333,7 @@ const SnakeMode = {
                 const currentDir = this.state.direction;
                 if (newDir.p !== -currentDir.p || newDir.q !== -currentDir.q) {
                     this.state.nextDirection = newDir;
+                    this.updateDirectionHighlight();
                 }
             }
         };
@@ -416,18 +409,21 @@ const SnakeMode = {
         }
     },
 
-    setStatus: function(text, type = 'info') {
-        const statusEl = document.getElementById('snake-game-status');
-        if (statusEl) {
-            statusEl.textContent = text;
-            statusEl.className = `status-${type}`;
-            if (type === 'error') {
-                statusEl.style.color = '#ff4b4b';
-            } else if (type === 'success') {
-                statusEl.style.color = '#7fe0d0';
-            } else {
-                statusEl.style.color = 'var(--accent)';
-            }
-        }
+    // Continuously highlights whichever D-pad arrow matches state.nextDirection, so the
+    // current heading is always visible at a glance instead of only flashing on press.
+    updateDirectionHighlight: function() {
+        const dir = this.state.nextDirection;
+        const idForDir = {
+            '-1,1': 'snake-btn-ul',
+            '0,1': 'snake-btn-ur',
+            '-1,0': 'snake-btn-left',
+            '1,0': 'snake-btn-right',
+            '0,-1': 'snake-btn-dl',
+            '1,-1': 'snake-btn-dr'
+        };
+        const activeId = idForDir[`${dir.p},${dir.q}`];
+        document.querySelectorAll('#snake-mobile-controls .m-btn').forEach(btn => {
+            btn.classList.toggle('active-direction', btn.id === activeId);
+        });
     }
 };

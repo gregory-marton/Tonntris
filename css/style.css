@@ -548,6 +548,13 @@ button:hover {
     touch-action: manipulation;
 }
 
+/* Persistent indicator of Snake's current next-direction, distinct from the momentary
+   :active press feedback below. */
+.m-btn.active-direction {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent) inset;
+}
+
 .m-btn:active {
     background: var(--accent);
     color: var(--bg);

@@ -1508,6 +1508,41 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     }
   });
 
+  test('snake D-pad continuously highlights whichever arrow matches the current next-direction', async ({ page }) => {
+    const width = page.viewportSize().width;
+    if (width >= 768) return;
+
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="snake"]').click());
+
+    const allIds = ['#snake-btn-ul', '#snake-btn-ur', '#snake-btn-left', '#snake-btn-right', '#snake-btn-dl', '#snake-btn-dr'];
+    const cases = [
+      { id: '#snake-btn-ul', dir: { p: -1, q: 1 } },
+      { id: '#snake-btn-ur', dir: { p: 0, q: 1 } },
+      { id: '#snake-btn-left', dir: { p: -1, q: 0 } },
+      { id: '#snake-btn-right', dir: { p: 1, q: 0 } },
+      { id: '#snake-btn-dl', dir: { p: 0, q: -1 } },
+      { id: '#snake-btn-dr', dir: { p: 1, q: -1 } },
+    ];
+
+    for (const { id, dir } of cases) {
+      await page.evaluate((d) => {
+        SnakeMode.state.direction = { p: 0, q: 0 };
+        SnakeMode.state.nextDirection = d;
+        SnakeMode.updateDirectionHighlight();
+      }, dir);
+
+      for (const candidateId of allIds) {
+        const hasClass = await page.locator(candidateId).evaluate(el => el.classList.contains('active-direction'));
+        expect(hasClass, `${candidateId} for direction ${JSON.stringify(dir)}`).toBe(candidateId === id);
+      }
+    }
+  });
+
+  test('#snake-game-status no longer exists', async ({ page }) => {
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="snake"]').click());
+    expect(await page.locator('#snake-game-status').count()).toBe(0);
+  });
+
   test('snake mobile pad clusters move to left/right edges in landscape', async ({ page }) => {
     await page.setViewportSize({ width: 852, height: 393 });
     await page.evaluate(() => document.querySelector('.mode-option[data-mode="snake"]').click());
