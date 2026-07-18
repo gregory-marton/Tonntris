@@ -194,6 +194,36 @@ test.describe('Invariant tests', () => {
     expect([...played[0].midis].sort((a, b) => a - b)).toEqual(expectedMidis);
   });
 
+  // Every hex within a placed piece must be an equally valid pickup handle — tapping ANY of
+  // its cells (not just the one that happens to be the piece's internal (0,0) "anchor") should
+  // pick up the WHOLE piece and land the ghost at its true position. This used to be an
+  // asymmetry bug: tapping a non-anchor cell left the ghost wherever hoverCell last was,
+  // instead of the picked-up piece's actual anchor.
+  test('INV-4: picking up a piece by a non-anchor cell still lands the ghost at the piece\'s true position', async ({ page }) => {
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
+
+    // '-' is anchored at its own (0,0) local cell; its other cell is (-1,0) — a non-anchor cell.
+    await page.evaluate(() => {
+      SandboxMode.state.selectedPiece = '-';
+      SandboxMode.state.rotation = 0;
+      SandboxMode.state.hoverCell = { p: 6, q: 6 }; // stale hoverCell, far from the piece
+      SandboxMode.placePiece(-4, -4); // does not touch hoverCell — it stays at the stale (6,6)
+    });
+
+    // Tap the NON-anchor cell (-5, -4), not (-4, -4).
+    const nonAnchorHex = page.locator('polygon.placed-piece[data-p="-5"][data-q="-4"]');
+    await nonAnchorHex.click({ force: true });
+
+    const hoverAfter = await page.evaluate(() => SandboxMode.state.hoverCell);
+    expect(hoverAfter).toEqual({ p: -4, q: -4 }); // the piece's true anchor, not (-5,-4) or the stale (6,6)
+
+    const ghostCells = await page.evaluate(() =>
+      [...document.querySelectorAll('.ghost')].map(g => ({ p: parseInt(g.getAttribute('data-p')), q: parseInt(g.getAttribute('data-q')) }))
+    );
+    const expectedCells = await page.evaluate(() => Pieces.getAbsoluteCells('-', -4, -4, 0));
+    expect(ghostCells.sort((a, b) => a.p - b.p)).toEqual(expectedCells.sort((a, b) => a.p - b.p));
+  });
+
   test('INV-5: tapping a cell in Melody mode both sounds its note AND visibly highlights that exact cell', async ({ page }) => {
     await page.evaluate(() => document.querySelector('.mode-option[data-mode="midi"]').click());
     await expect(page.locator('#midi-game-status')).toHaveText(/Your turn!/, { timeout: 8000 });

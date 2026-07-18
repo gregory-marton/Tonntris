@@ -47,9 +47,19 @@ area is left unreachable by a hidden ancestor"
 
 Every sound the app plays corresponds exactly to the Tonnetz note(s) of the cell(s) actually
 responsible for it — tapping an empty cell plays that cell's note, picking up a placed piece
-plays a chord of precisely that piece's own cells, nothing more or less.
+plays a chord of precisely that piece's own cells, nothing more or less. This also means every
+hex within a piece is an equally valid pickup handle: which specific cell you tap must never
+change where the picked-up ghost lands — it's always the piece's true position, not wherever
+`hoverCell` happened to be. `getAbsoluteCells`/`rotate` treat every cell in a piece uniformly by
+construction (each piece's `cells` array happens to include a literal `(0,0)` entry, which is
+the only cell with any special status at all, purely as a coordinate-system convenience — not a
+privileged cell in any collision, rendering, or audio logic, all of which iterate every cell of
+a piece equally). The one place this was actually violated was pickup: `hoverCell` wasn't reset
+to the picked-up piece's own anchor before re-rendering its ghost, so tapping a non-anchor cell
+of a multi-cell piece could leave the ghost wherever `hoverCell` last was — fixed in
+`SandboxMode.handleAction`/`pickupPieceAt`.
 
-**Tests:** `tests/invariants.spec.js` — the two "INV-4: ..." tests
+**Tests:** `tests/invariants.spec.js` — the three "INV-4: ..." tests
 
 ### INV-5: Audio and visuals stay in sync
 

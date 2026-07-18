@@ -35,22 +35,24 @@ const Pieces = {
         'P': {
             name: 'P',
             color: '#4b4bff',
-            cells: [{p:-1, q:0}, {p:0, q:0}, {p:1, q:0}, {p:-1, q:1}]
+            // Rotated from the original definition so rotation 0 is whichever orientation
+            // forms the simplest chord (a Dominant 7th here) — see docs/invariants.md.
+            cells: [{p:0, q:-1}, {p:0, q:0}, {p:0, q:1}, {p:-1, q:0}]
         },
         'Q': {
             name: 'Q',
             color: '#ff9c4b',
-            cells: [{p:-1, q:0}, {p:0, q:0}, {p:1, q:0}, {p:0, q:1}]
+            cells: [{p:-1, q:1}, {p:0, q:0}, {p:1, q:-1}, {p:1, q:0}]
         },
         'L': {
             name: 'L',
             color: '#4bff4b',
-            cells: [{p:-1, q:0}, {p:0, q:0}, {p:1, q:0}, {p:1, q:1}]
+            cells: [{p:-1, q:1}, {p:0, q:0}, {p:1, q:-1}, {p:2, q:-1}]
         },
         'J': {
             name: 'J',
             color: '#ff4bff',
-            cells: [{p:-1, q:0}, {p:0, q:0}, {p:1, q:0}, {p:2, q:-1}]
+            cells: [{p:1, q:-1}, {p:0, q:0}, {p:-1, q:1}, {p:-1, q:2}]
         },
         'S': {
             name: 'S',
@@ -75,7 +77,7 @@ const Pieces = {
         'C': {
             name: 'C',
             color: '#4bffff',
-            cells: [{p:0, q:0}, {p:1, q:0}, {p:1, q:1}, {p:-1, q:1}]
+            cells: [{p:0, q:0}, {p:0, q:-1}, {p:1, q:-2}, {p:1, q:0}]
         },
         'X': {
             name: 'X',
@@ -90,7 +92,7 @@ const Pieces = {
         '>': {
             name: '>',
             color: '#00bbf9',
-            cells: [{p:-1, q:0}, {p:0, q:0}, {p:0, q:1}]
+            cells: [{p:1, q:-1}, {p:0, q:0}, {p:-1, q:0}]
         },
         '<': {
             name: '<',
@@ -100,7 +102,7 @@ const Pieces = {
         'V': {
             name: 'V',
             color: '#fee440',
-            cells: [{p:-1, q:0}, {p:0, q:0}, {p:-1, q:1}]
+            cells: [{p:0, q:-1}, {p:0, q:0}, {p:-1, q:0}]
         },
         '-': {
             name: '-',
@@ -115,6 +117,11 @@ const Pieces = {
     },
 
     TETRAHEX_KEYS: ['P', 'Q', 'L', 'J', 'S', 'Z', 'I', 'O', 'C', 'X'],
+
+    // Sandbox carousel order: simplest to most complex. Single hex, then the domino, then the
+    // trihexes and tetrahexes each ordered roundest/most-compact -> straightest -> bendiest,
+    // with mirror-image pairs (>/<, L/J, P/Q, S/Z) kept adjacent.
+    CAROUSEL_ORDER: ['.', '-', 'V', '|', '>', '<', 'O', 'X', 'I', 'L', 'J', 'P', 'Q', 'C', 'S', 'Z'],
 
     // Rotate 60 degrees clockwise
     rotate: function(cells) {

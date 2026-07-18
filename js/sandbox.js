@@ -81,7 +81,7 @@ const SandboxMode = {
         noteToolDiv.onclick = () => this.selectNoteTool();
         list.appendChild(noteToolDiv);
 
-        for (const key in Pieces.TYPES) {
+        for (const key of Pieces.CAROUSEL_ORDER) {
             const piece = Pieces.TYPES[key];
             const div = document.createElement('div');
             div.className = 'piece-item';
