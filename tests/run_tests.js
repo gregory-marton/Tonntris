@@ -440,6 +440,49 @@ try {
     }
     console.log(`PASS: All ${wikiLinksChecked} Wikipedia links use Special:MyLanguage!`);
 
+    // BUG (reported live): a piece sliding toward the Gravity cup's left/right wall should be
+    // able to overhang as far as it likes, as long as it keeps at least one hex ("a toe-hold")
+    // on the actual playable columns (-5..4). Previously checkActivePlacement required EVERY
+    // cell to be within a fixed window only one column wider than the cup (-6..5), so any
+    // piece longer than 2 cells could only ever overhang by exactly one column, well short of
+    // "down to a single hex on the grid."
+    console.log("Running Gravity single-hex-toehold overhang test...");
+    App.currentMode = 'gravity';
+    Board.cells.clear();
+
+    // I piece "laying flat" (rotation 0): local cells (-1,0),(0,0),(1,0),(2,0), i.e. 4 cells in
+    // a row. At q=10 (even, so floor(10/2)=5), col = p + 5.
+    // Anchor p=0 -> cols 4,5,6,7: only the leftmost cell (col 4) is on-grid, the other three
+    // hang off the RIGHT edge (col > 4). This should be a legal position (one toe-hold cell).
+    if (!Board.checkActivePlacement('I', 0, 10, 0)) {
+        console.error("FAIL: a piece with exactly one hex on the grid (hanging 3 off the right edge) should be a legal position!");
+        process.exit(1);
+    }
+
+    // Anchor p=-12 -> cols -8,-7,-6,-5: only the rightmost cell (col -5) is on-grid, the other
+    // three hang off the LEFT edge. Also legal (one toe-hold cell, other side).
+    if (!Board.checkActivePlacement('I', -12, 10, 0)) {
+        console.error("FAIL: a piece with exactly one hex on the grid (hanging 3 off the left edge) should be a legal position!");
+        process.exit(1);
+    }
+
+    // Anchor p=-13 -> cols -9,-8,-7,-6: ALL four cells off-grid, zero toe-hold. Must be illegal
+    // — a piece can't float entirely off the playable columns.
+    if (Board.checkActivePlacement('I', -13, 10, 0)) {
+        console.error("FAIL: a piece with NO hex on the grid (fully off the left edge) should be illegal (no toe-hold)!");
+        process.exit(1);
+    }
+
+    // The floor (q < 0) must stay a hard limit regardless of toe-hold elsewhere: a piece can't
+    // dip below q=0 even if the rest of it has plenty of room on-grid.
+    if (Board.checkActivePlacement('I', 0, -1, 0)) {
+        console.error("FAIL: a piece with any cell below the floor (q < 0) should always be illegal, toe-hold or not!");
+        process.exit(1);
+    }
+
+    Board.cells.clear();
+    console.log("PASS: Gravity pieces can overhang the side walls down to a single toe-hold hex, and the floor stays solid!");
+
     process.exit(0);
 } catch (err) {
     console.error("FAIL: App test failed with error:", err.stack || err.message);

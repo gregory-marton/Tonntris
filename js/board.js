@@ -188,11 +188,19 @@ const Board = {
 
     checkActivePlacement: function(type, p, q, rotation) {
         const cells = Pieces.getAbsoluteCells(type, p, q, rotation);
-        return cells.every(c => {
+        // The floor is always solid, but the side walls aren't: a piece may overhang the left
+        // or right edge as far as it likes while steering, as long as it keeps at least one
+        // hex ("a toe-hold") on the actual playable columns — cells beyond the wall simply
+        // can't collide with anything, since there's nothing out there to collide with.
+        let hasToeHold = false;
+        for (const c of cells) {
+            if (c.q < 0) return false;
             const col = c.p + Math.floor(c.q / 2);
-            const inBounds = c.q >= 0 && col >= -6 && col <= 5;
-            return inBounds && !this.cells.has(`${c.p},${c.q}`);
-        });
+            if (col < -5 || col > 4) continue;
+            hasToeHold = true;
+            if (this.cells.has(`${c.p},${c.q}`)) return false;
+        }
+        return hasToeHold;
     }
 };
 
