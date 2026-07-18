@@ -21,33 +21,46 @@ test('chord guide has no placeholder explanation text before a chord is chosen',
   expect(text.trim()).toBe('');
 });
 
-test('chord guide results show a piece preview matching the correct rotation', async ({ page }) => {
+test('chord guide results show a piece preview matching the correct rotation, for every result across every chord type', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
 
   const chordSelect = page.locator('#chord-guide-select');
-  await chordSelect.selectOption('major');
+  const chordTypes = await chordSelect.locator('option').evaluateAll(
+    (opts) => opts.map(o => o.value).filter(v => v !== '')
+  );
+  expect(chordTypes.length).toBeGreaterThan(0);
 
-  const firstMatch = page.locator('.chord-match-item').first();
-  await expect(firstMatch).toBeVisible();
+  let totalResultsChecked = 0;
 
-  const preview = firstMatch.locator('.chord-match-preview');
-  await expect(preview).toBeAttached();
+  for (const chordType of chordTypes) {
+    await chordSelect.selectOption(chordType);
 
-  const info = await page.evaluate(() => {
-    const item = document.querySelector('.chord-match-item');
-    const type = item.getAttribute('data-type');
-    const rotation = parseInt(item.getAttribute('data-rotation'));
-    const expectedCells = Pieces.getAbsoluteCells(type, 0, 0, rotation);
-    const renderedHexes = item.querySelectorAll('.chord-match-preview polygon');
-    return { expectedCount: expectedCells.length, renderedCount: renderedHexes.length };
-  });
+    const firstMatch = page.locator('.chord-match-item').first();
+    await expect(firstMatch).toBeVisible({ timeout: 3000 });
 
-  expect(info.renderedCount).toBeGreaterThan(0);
-  expect(info.renderedCount).toBe(info.expectedCount);
+    const results = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('.chord-match-item')).map(item => {
+        const type = item.getAttribute('data-type');
+        const rotation = parseInt(item.getAttribute('data-rotation'));
+        const expectedCells = Pieces.getAbsoluteCells(type, 0, 0, rotation);
+        const renderedHexes = item.querySelectorAll('.chord-match-preview polygon');
+        return { type, rotation, expectedCount: expectedCells.length, renderedCount: renderedHexes.length };
+      });
+    });
 
-  // The old static "Use" badge text should be gone
-  const badgeText = await firstMatch.locator('span').allTextContents();
+    expect(results.length, `chord type "${chordType}" should have at least one match`).toBeGreaterThan(0);
+    for (const r of results) {
+      expect(r.renderedCount, `chord "${chordType}", piece ${r.type} rot ${r.rotation}`).toBeGreaterThan(0);
+      expect(r.renderedCount, `chord "${chordType}", piece ${r.type} rot ${r.rotation}`).toBe(r.expectedCount);
+    }
+    totalResultsChecked += results.length;
+  }
+
+  expect(totalResultsChecked).toBeGreaterThan(chordTypes.length); // most chord types have multiple matches
+
+  // The old static "Use" badge text should be gone (spot-check on whatever's currently shown)
+  const badgeText = await page.locator('.chord-match-item').first().locator('span').allTextContents();
   expect(badgeText.join('')).not.toContain('Use');
 });
 
@@ -256,22 +269,38 @@ test('clicking the active queue item does not place when the ghost position is i
   expect(placedAfter).toBe(placedBefore);
 });
 
-test('panning cannot scroll far past the edge of the audible tonnetz', async ({ page }) => {
-  await page.goto('/');
-  await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
+// Render.getPanBounds() (js/render.js) only returns real bounds for Sandbox/Blast/Melody
+// ('midi') — the three modes with a free-panning, unrestricted Tonnetz. Exercise all three,
+// not just Sandbox, so a future mode added to (or accidentally dropped from) that allowlist
+// gets caught here instead of only being noticed by whichever mode someone happens to test by
+// hand.
+for (const mode of ['sandbox', 'blast', 'midi']) {
+  test(`panning cannot scroll far past the edge of the audible tonnetz (${mode})`, async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate((m) => document.querySelector(`.mode-option[data-mode="${m}"]`).click(), mode);
 
-  const result = await page.evaluate(() => {
-    Render.updateView(-1000000, -1000000, 1);
-    const afterNegative = { x: Render.viewX, y: Render.viewY };
-    Render.updateView(1000000, 1000000, 1);
-    const afterPositive = { x: Render.viewX, y: Render.viewY };
-    const bounds = Render.getPanBounds();
-    return { afterNegative, afterPositive, bounds };
+    const result = await page.evaluate(() => {
+      Render.updateView(-1000000, -1000000, 1);
+      const afterNegative = { x: Render.viewX, y: Render.viewY };
+      Render.updateView(1000000, 1000000, 1);
+      const afterPositive = { x: Render.viewX, y: Render.viewY };
+      const bounds = Render.getPanBounds();
+      return { afterNegative, afterPositive, bounds };
+    });
+
+    expect(result.bounds, `${mode} should allow free panning with real bounds`).not.toBeNull();
+    expect(result.afterNegative.x).toBeCloseTo(result.bounds.minX, 0);
+    expect(result.afterNegative.y).toBeCloseTo(result.bounds.minY, 0);
+    expect(result.afterPositive.x).toBeCloseTo(result.bounds.maxX - 800, 0);
+    expect(result.afterPositive.y).toBeCloseTo(result.bounds.maxY - 600, 0);
   });
+}
 
-  expect(result.bounds).not.toBeNull();
-  expect(result.afterNegative.x).toBeCloseTo(result.bounds.minX, 0);
-  expect(result.afterNegative.y).toBeCloseTo(result.bounds.minY, 0);
-  expect(result.afterPositive.x).toBeCloseTo(result.bounds.maxX - 800, 0);
-  expect(result.afterPositive.y).toBeCloseTo(result.bounds.maxY - 600, 0);
+test('panning is left unclamped in restricted modes (Snake/Gravity have no free-pan bounds)', async ({ page }) => {
+  await page.goto('/');
+  for (const mode of ['snake', 'gravity']) {
+    await page.evaluate((m) => document.querySelector(`.mode-option[data-mode="${m}"]`).click(), mode);
+    const bounds = await page.evaluate(() => Render.getPanBounds());
+    expect(bounds, `${mode} should NOT have free-pan bounds`).toBeNull();
+  }
 });

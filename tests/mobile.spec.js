@@ -1064,39 +1064,6 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     expect(result.viewBoxCenterY).toBeCloseTo(result.boardCenterY, 0);
   });
 
-  test('every playable Blast board cell is visible on screen (none clipped by an undersized viewBox)', async ({ page }) => {
-    const width = page.viewportSize().width;
-    if (width >= 768) return;
-
-    await page.evaluate(() => document.querySelector('.mode-option[data-mode="blast"]').click());
-
-    const svgBox = await page.locator('#tonnetz-svg').boundingBox();
-
-    const result = await page.evaluate((containerRect) => {
-      const cells = [];
-      for (let p = -Board.radius; p <= Board.radius; p++) {
-        for (let q = -Board.radius; q <= Board.radius; q++) {
-          if (Board.isInBounds(p, q)) cells.push({ p, q });
-        }
-      }
-      let visible = 0;
-      cells.forEach(({ p, q }) => {
-        const el = document.querySelector(`#tonnetz-svg polygon.cell[data-p="${p}"][data-q="${q}"]`);
-        if (!el) return;
-        const r = el.getBoundingClientRect();
-        const cx = (r.left + r.right) / 2;
-        const cy = (r.top + r.bottom) / 2;
-        const inView = cx >= containerRect.x && cx <= containerRect.x + containerRect.width &&
-          cy >= containerRect.y && cy <= containerRect.y + containerRect.height;
-        if (inView) visible++;
-      });
-      return { total: cells.length, visible };
-    }, svgBox);
-
-    expect(result.total).toBeGreaterThan(0);
-    expect(result.visible).toBe(result.total);
-  });
-
   const gravityCupCells = () => {
     const cells = [];
     for (let q = 0; q < 20; q++) {
@@ -1130,15 +1097,12 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     expect(result.viewBoxCenterY).toBeCloseTo(result.boardCenterY, 0);
   });
 
-  test('every playable Gravity cup cell is visible on screen (none clipped by an undersized viewBox)', async ({ page }) => {
-    const width = page.viewportSize().width;
-    if (width >= 768) return;
-
-    await page.evaluate(() => document.querySelector('.mode-option[data-mode="gravity"]').click());
-
+  // Shared by the parametrized "every playable cell is visible" test below: given a mode and
+  // its own definition of "playable cells" (each mode has a differently-shaped board), returns
+  // how many of those cells actually fall within the rendered #tonnetz-svg's bounding box.
+  async function measureCellVisibility(page, cells) {
     const svgBox = await page.locator('#tonnetz-svg').boundingBox();
-
-    const result = await page.evaluate(({ cells, containerRect }) => {
+    return page.evaluate(({ cells, containerRect }) => {
       let visible = 0;
       cells.forEach(({ p, q }) => {
         const el = document.querySelector(`#tonnetz-svg polygon.cell[data-p="${p}"][data-q="${q}"]`);
@@ -1151,11 +1115,46 @@ test.describe('Mobile Viewport and Layout Tests', () => {
         if (inView) visible++;
       });
       return { total: cells.length, visible };
-    }, { cells: gravityCupCells(), containerRect: svgBox });
+    }, { cells, containerRect: svgBox });
+  }
 
-    expect(result.total).toBeGreaterThan(0);
-    expect(result.visible).toBe(result.total);
-  });
+  const playableCellsByMode = {
+    // Snake's own radius-7 hex board (js/snake.js SnakeMode.isInBounds), distinct from Blast's
+    // radius-5 Board.isInBounds.
+    snake: () => {
+      const cells = [];
+      for (let p = -7; p <= 7; p++) {
+        for (let q = -7; q <= 7; q++) {
+          if (Math.abs(p) <= 7 && Math.abs(q) <= 7 && Math.abs(p + q) <= 7) cells.push({ p, q });
+        }
+      }
+      return cells;
+    },
+    blast: () => {
+      const cells = [];
+      for (let p = -5; p <= 5; p++) {
+        for (let q = -5; q <= 5; q++) {
+          if (Math.abs(p) <= 5 && Math.abs(q) <= 5 && Math.abs(p + q) <= 5) cells.push({ p, q });
+        }
+      }
+      return cells;
+    },
+    gravity: gravityCupCells,
+  };
+
+  for (const mode of ['snake', 'blast', 'gravity']) {
+    test(`every playable ${mode} board cell is visible on screen (none clipped by an undersized viewBox)`, async ({ page }) => {
+      const width = page.viewportSize().width;
+      if (width >= 768) return;
+
+      await page.evaluate((m) => document.querySelector(`.mode-option[data-mode="${m}"]`).click(), mode);
+
+      const result = await measureCellVisibility(page, playableCellsByMode[mode]());
+
+      expect(result.total).toBeGreaterThan(0);
+      expect(result.visible).toBe(result.total);
+    });
+  }
 
   test('gravity board zoom is fit to the cup, not a fixed value unrelated to its size', async ({ page }) => {
     const width = page.viewportSize().width;
