@@ -669,22 +669,25 @@ test.describe('Invariant tests', () => {
   // ────────────────────────────────────────────────────────────────────────
   // INV-18: The mosquito bug-report link (next to the "</> local" code link) exists specifically
   // for players who can't reach a browser console — mostly mobile players, who'd otherwise need
-  // a second computer to debug their phone. It must open a real, prefilled GitHub issue carrying
-  // the current mode and recent real input, with nothing pre-armed by the player beforehand.
+  // a second computer to debug their phone. It must confirm before sending anything to the
+  // player's device: accepting downloads the full log (seed, meta, every recorded event) as a
+  // file; declining copies that same payload to the clipboard instead. Either way it then opens a
+  // real GitHub issue, with nothing pre-armed by the player beforehand.
   //
-  // The full log is always a real file download, never clipboard-paste-into-body -- found live
-  // that even a session short enough to technically fit under GitHub's 65536-char body limit
-  // still shouldn't be pasted inline (a real reporter's actual workflow was "paste into a text
-  // document, attach that as a separate file"), and a real ~2.5 hour session's full log blew
-  // well past that limit anyway. A downloaded file sidesteps the question for any length.
+  // The issue URL itself carries nothing but instructions to the human reporter -- no title, no
+  // mode/seed/version/events. All of that already lives in the downloaded/copied payload, so
+  // repeating it in the URL is redundant, and keeps the URL short regardless of session length (a
+  // real ~2.5 hour session's full log blows well past what a URL, let alone GitHub's 65536-char
+  // body limit, can carry).
   // ────────────────────────────────────────────────────────────────────────
 
-  test('INV-18: the bug-report link downloads the full log and opens a prefilled GitHub issue', async ({ page }) => {
+  test('INV-18a: accepting the save prompt downloads the full log and opens a minimal GitHub issue', async ({ page }) => {
     // Replace window.open with a recorder instead of letting it actually navigate to github.com.
     await page.evaluate(() => {
       window.__openedUrl = null;
       window.open = (url) => { window.__openedUrl = url; return null; };
     });
+    page.on('dialog', dialog => dialog.accept());
 
     await page.evaluate(() => document.querySelector('.mode-option[data-mode="blast"]').click());
     await page.keyboard.press('ArrowLeft');
@@ -707,12 +710,45 @@ test.describe('Invariant tests', () => {
 
     const openedUrl = await page.evaluate(() => window.__openedUrl);
     expect(openedUrl).toContain('https://github.com/gregory-marton/Tonncade/issues/new?');
-    const body = new URL(openedUrl).searchParams.get('body');
-    expect(body).toContain('**Mode:** blast');
-    expect(body).toMatch(/\*\*Seed:\*\* \d+/);
-    expect(body).toContain('"key": "ArrowLeft"');
-    expect(body).toContain("don't paste it into the body");
-    expect(body).not.toContain('copied to your clipboard');
+    const url = new URL(openedUrl);
+    expect(url.searchParams.has('title')).toBe(false);
+    const body = url.searchParams.get('body');
+    expect(body).toContain('downloaded or copied to your clipboard');
+    expect(body).toContain('What happened?');
+    expect(body).not.toContain('**Mode:**');
+    expect(body).not.toContain('**Seed:**');
+  });
+
+  test('INV-18b: declining the save prompt copies the full log to the clipboard instead', async ({ page, context, browserName }) => {
+    test.skip(browserName !== 'chromium', 'clipboard-write permission grants are Chromium-only in Playwright');
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+    await page.evaluate(() => {
+      window.__openedUrl = null;
+      window.open = (url) => { window.__openedUrl = url; return null; };
+    });
+    page.on('dialog', dialog => dialog.dismiss());
+
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="blast"]').click());
+    await page.keyboard.press('ArrowLeft');
+
+    const isMobile = await page.evaluate(() => Render.isMobileViewport());
+    if (isMobile) {
+      const drawer = page.locator('#top-drawer');
+      if (!(await drawer.evaluate(el => el.classList.contains('expanded')))) {
+        await page.locator('#drawer-handle').click();
+        await expect(drawer).toHaveClass(/expanded/);
+      }
+    }
+
+    await page.locator('#report-bug-link').click();
+
+    // reportBug() awaits the clipboard write before calling window.open(), so once __openedUrl
+    // is set the clipboard is guaranteed to already hold the full log.
+    await expect.poll(() => page.evaluate(() => window.__openedUrl)).not.toBeNull();
+    const clipboardPayload = JSON.parse(await page.evaluate(() => navigator.clipboard.readText()));
+    expect(typeof clipboardPayload.seed).toBe('number');
+    expect(clipboardPayload.events.some(e => e.key === 'ArrowLeft')).toBe(true);
   });
 
   // ────────────────────────────────────────────────────────────────────────

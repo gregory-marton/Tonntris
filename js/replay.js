@@ -152,47 +152,21 @@ const Replay = {
     /**
      * Players who can't reach a browser console (most mobile users -- see docs/ for why) still
      * need a way to report a bug with their real input history attached. This bypasses the
-     * console entirely: it downloads the full log as a file and opens a prefilled GitHub issue.
-     * Always a FILE, never pasted into the body -- found live that even a session short enough
-     * to technically fit under GitHub's 65536-character body limit still shouldn't be pasted
-     * inline (a real reporter's actual workflow was "paste into a text document, attach that as
-     * a separate file", never "paste into the body"), and a real ~2.5 hour session's full log
-     * blew well past that limit anyway. A downloaded file sidesteps the question entirely, for
-     * any length. Only the last 30 events go directly in the URL, since a GitHub issue URL
-     * carrying the full 5000-event log would be far too long to work reliably.
+     * console entirely: the full log (seed, meta, and every recorded event) is either downloaded
+     * as a file or copied to the clipboard -- see reportBug -- and the GitHub issue that opens
+     * carries nothing but instructions to the reporter, no title, no mode/seed/version/events
+     * baked into the URL. All of that lives in the downloaded/copied payload already; repeating
+     * it in the URL was just redundant, and kept the URL long for no reason (a real ~2.5 hour
+     * session's full log blows well past what a URL, let alone GitHub's 65536-character body
+     * limit, can carry).
      */
     buildIssueUrl: function() {
-        const mode = (typeof App !== 'undefined') ? App.currentMode : 'unknown';
-        const viewport = `${window.innerWidth || '?'}x${window.innerHeight || '?'}`;
-        const meta = this.meta || {};
-        const recentEvents = this.log.slice(-30);
-        // Appending ?seed=<seed> to the app's own URL re-forces the same random sequence on
-        // reload -- see seedRandom(). This turns the recorded seed from a fact into something
-        // directly actionable for whoever investigates the report.
-        const replayUrl = `${location.origin}${location.pathname}?seed=${this.seed}`;
-        const filename = `tonncade-replay-${this.seed}.json`;
-
         const body = [
-            `**Version:** ${meta.version || 'unknown'}`,
-            `**Mode:** ${mode}`,
-            `**Seed:** ${this.seed} (reload with \`${replayUrl}\` to reproduce the same random sequence)`,
-            `**Viewport:** ${viewport}`,
-            `**User agent:** ${meta.userAgent || 'unknown'}`,
-            `**Max touch points:** ${meta.maxTouchPoints}`,
-            `**Device pixel ratio:** ${meta.devicePixelRatio}`,
-            '',
-            '**What happened:**',
-            '(describe the bug here)',
-            '',
-            `Your full session history has been downloaded as \`${filename}\`. Please attach that file to this bug report -- don't paste it into the body. If the download didn't start (some browsers block it), open the console, run \`copy(replay())\`, paste the result into a text document, and attach that file instead.`,
-            '',
-            `**Last ${recentEvents.length} recorded inputs (preview only -- see the attached file for the full session):**`,
-            '```json',
-            JSON.stringify(recentEvents, null, 2),
-            '```',
+            '1. Debugging data has been downloaded or copied to your clipboard. Please save that to a .txt or .json file and attach it here.',
+            '2. What happened?',
         ].join('\n');
 
-        const params = new URLSearchParams({ title: 'Bug report', body });
+        const params = new URLSearchParams({ body });
         return `https://github.com/gregory-marton/Tonncade/issues/new?${params.toString()}`;
     },
 
@@ -210,9 +184,40 @@ const Replay = {
         URL.revokeObjectURL(url);
     },
 
-    reportBug: function(e) {
+    // Falls back to a hidden-textarea copy for browsers/contexts where navigator.clipboard is
+    // unavailable (e.g. insecure file:// origins).
+    copyFullLogToClipboard: function() {
+        const fullLogJson = JSON.stringify({ seed: this.seed, meta: this.meta, events: this.log });
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(fullLogJson).catch(() => this.legacyCopy(fullLogJson));
+        }
+        return Promise.resolve(this.legacyCopy(fullLogJson));
+    },
+
+    legacyCopy: function(text) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        try {
+            document.execCommand('copy');
+        } finally {
+            document.body.removeChild(textarea);
+        }
+    },
+
+    // Downloading a file to someone's device without asking is intrusive -- confirm first.
+    // Declining (or a browser that blocks confirm/popups) falls back to the clipboard instead.
+    reportBug: async function(e) {
         if (e) e.preventDefault();
-        this.downloadFullLog();
+        if (confirm('Save your debugging data as a file on this device to attach to the report? Choose Cancel to copy it to your clipboard instead.')) {
+            this.downloadFullLog();
+        } else {
+            await this.copyFullLogToClipboard();
+        }
         window.open(this.buildIssueUrl(), '_blank');
     }
 };

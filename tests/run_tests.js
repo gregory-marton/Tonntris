@@ -656,51 +656,47 @@ try {
         console.error(`FAIL: buildIssueUrl() should target the real repo's new-issue page, got: ${issueUrl}`);
         process.exit(1);
     }
-    const decodedBody = new URLSearchParams(issueUrl.split('?')[1]).get('body');
-    if (!decodedBody.includes('**Mode:** gravity')) {
-        console.error(`FAIL: buildIssueUrl() body should include the current mode! Body: ${decodedBody}`);
+    const urlParams = new URLSearchParams(issueUrl.split('?')[1]);
+    if (urlParams.has('title')) {
+        console.error(`FAIL: buildIssueUrl() should not set a title -- keep the URL minimal, all detail lives in the clipboard payload! Got title: ${urlParams.get('title')}`);
         process.exit(1);
     }
-    if (!decodedBody.includes(`**Seed:** ${ReplayObj.seed}`)) {
-        console.error(`FAIL: buildIssueUrl() body should include the recorded seed! Body: ${decodedBody}`);
+    const decodedBody = urlParams.get('body');
+    // The URL carries nothing but instructions to the human reporter -- mode, seed, version,
+    // and events all live in the downloaded/copied payload (see downloadFullLog and
+    // copyFullLogToClipboard) instead, so they shouldn't be duplicated here.
+    if (!decodedBody.includes('downloaded or copied to your clipboard')) {
+        console.error(`FAIL: buildIssueUrl() body should tell the reporter the debug data was downloaded or copied to their clipboard! Body: ${decodedBody}`);
         process.exit(1);
     }
-    if (!decodedBody.includes(`?seed=${ReplayObj.seed}`)) {
-        console.error(`FAIL: buildIssueUrl() body should include a ready-to-use ?seed= replay URL! Body: ${decodedBody}`);
+    if (!decodedBody.includes('What happened?')) {
+        console.error(`FAIL: buildIssueUrl() body should prompt the reporter to describe what happened! Body: ${decodedBody}`);
         process.exit(1);
     }
-    if (!decodedBody.includes(`**Version:** ${ReplayObj.meta.version}`)) {
-        console.error(`FAIL: buildIssueUrl() body should include the recorded git version! Body: ${decodedBody}`);
-        process.exit(1);
-    }
-    if (!decodedBody.includes('**Max touch points:**') || !decodedBody.includes('**Device pixel ratio:**')) {
-        console.error(`FAIL: buildIssueUrl() body should include touch/pixel-ratio metadata! Body: ${decodedBody}`);
-        process.exit(1);
-    }
-    if (!decodedBody.includes('"key": "f"') || !decodedBody.includes('"key": "h"')) {
-        console.error(`FAIL: buildIssueUrl() body should include recent recorded events! Body: ${decodedBody}`);
-        process.exit(1);
-    }
-    // Found live (a real reporter's actual workflow, and a real ~2.5 hour Blast session whose
-    // full log blew past GitHub's 65536-char body limit): the full log must always be treated as
-    // a file to attach, never text to paste into the body -- regardless of how short the session
-    // was. No conditional "if it's not already pasted below" framing either, since the 30-event
-    // preview is ALWAYS below, which made that old wording read as satisfied even when the
-    // reporter still needed to separately handle the full log.
-    if (!decodedBody.includes(`downloaded as \`tonncade-replay-${ReplayObj.seed}.json\``)) {
-        console.error(`FAIL: buildIssueUrl() body should say the full log was downloaded, with the exact filename! Body: ${decodedBody}`);
-        process.exit(1);
-    }
-    if (!decodedBody.includes("don't paste it into the body")) {
-        console.error(`FAIL: buildIssueUrl() body should explicitly say not to paste the full log into the body! Body: ${decodedBody}`);
-        process.exit(1);
-    }
-    if (decodedBody.includes('copied to your clipboard') || decodedBody.includes('Paste it below this line')) {
-        console.error(`FAIL: buildIssueUrl() should never suggest pasting the full log into the body! Body: ${decodedBody}`);
+    if (decodedBody.includes('**Mode:**') || decodedBody.includes('**Seed:**') || decodedBody.includes('**Version:**') || decodedBody.includes('"key"')) {
+        console.error(`FAIL: buildIssueUrl() body should not duplicate mode/seed/version/events -- that's redundant with the clipboard payload! Body: ${decodedBody}`);
         process.exit(1);
     }
     ReplayObj.log = [];
-    console.log("PASS: Replay.buildIssueUrl() always treats the full log as a file to attach, never text to paste into the body!");
+    console.log("PASS: Replay.buildIssueUrl() keeps the URL minimal, deferring all detail to the downloaded/copied payload!");
+
+    console.log("Running Replay.copyFullLogToClipboard() test...");
+    ReplayObj.log = [{ type: 'keydown', t: 1, key: 'x' }];
+    let clipboardWritten = null;
+    // global.navigator is a getter-only built-in as of Node 21+ -- plain assignment silently
+    // no-ops, so defineProperty is required to stub it out.
+    Object.defineProperty(global, 'navigator', {
+        value: { clipboard: { writeText: (text) => { clipboardWritten = text; return Promise.resolve(); } } },
+        configurable: true,
+    });
+    vm.runInContext("Replay.copyFullLogToClipboard()", context);
+    const clipboardPayload = JSON.parse(clipboardWritten);
+    if (clipboardPayload.seed !== ReplayObj.seed || !Array.isArray(clipboardPayload.events) || clipboardPayload.events[0].key !== 'x') {
+        console.error(`FAIL: copyFullLogToClipboard() should write { seed, meta, events } to the clipboard! Got: ${clipboardWritten}`);
+        process.exit(1);
+    }
+    ReplayObj.log = [];
+    console.log("PASS: Replay.copyFullLogToClipboard() writes the full { seed, meta, events } log to the clipboard!");
 
     console.log("Running window.replay() schema test...");
     ReplayObj.log = [{ type: 'keydown', t: 1, key: 'x' }];
