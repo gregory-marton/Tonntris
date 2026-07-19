@@ -15,12 +15,13 @@ module.exports = {
     baseURL: 'http://localhost:8001',
     trace: 'on-first-retry',
     serviceWorkers: 'block',
+    screenshot: 'only-on-failure',
   },
   projects: [
     {
       name: 'Desktop Chrome',
       use: { ...devices['Desktop Chrome'] },
-      testMatch: /.*desktop\.spec\.js/,
+      testMatch: /.*(desktop|stories)\.spec\.js/,
     },
     {
       name: 'Mobile Chrome',
