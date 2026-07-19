@@ -41,7 +41,7 @@ test.describe('Invariant tests', () => {
       if (isMobile) {
         const drawer = page.locator('#top-drawer');
         if (!(await drawer.evaluate(el => el.classList.contains('expanded')))) {
-          await page.locator('#drawer-handle').click({ force: true });
+          await page.locator('#drawer-handle').click();
           await expect(drawer).toHaveClass(/expanded/);
         }
       }
@@ -73,11 +73,11 @@ test.describe('Invariant tests', () => {
     // BOTH at once instead of just one. Checking exact class equality (not just "contains
     // expanded") catches that desync; the old assertion here would have passed even with both
     // classes present simultaneously.
-    await handle.click({ force: true });
+    await handle.click();
     await expect(drawer).toHaveClass('expanded');
-    await handle.click({ force: true });
+    await handle.click();
     await expect(drawer).toHaveClass('collapsed');
-    await handle.click({ force: true });
+    await handle.click();
     await expect(drawer).toHaveClass('expanded');
   });
 
@@ -443,7 +443,7 @@ test.describe('Invariant tests', () => {
         // collapsible drawer first, same as a real player would (mirrors INV-1's pattern).
         const drawer = page.locator('#top-drawer');
         if (!(await drawer.evaluate(el => el.classList.contains('expanded')))) {
-          await page.locator('#drawer-handle').click({ force: true });
+          await page.locator('#drawer-handle').click();
           await expect(drawer).toHaveClass(/expanded/);
         }
 
@@ -689,7 +689,7 @@ test.describe('Invariant tests', () => {
     if (isMobile) {
       const drawer = page.locator('#top-drawer');
       if (!(await drawer.evaluate(el => el.classList.contains('expanded')))) {
-        await page.locator('#drawer-handle').click({ force: true });
+        await page.locator('#drawer-handle').click();
         await expect(drawer).toHaveClass(/expanded/);
       }
     }

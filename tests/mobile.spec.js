@@ -435,7 +435,7 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
     await page.evaluate(dispatchAtHelpers);
 
-    await page.locator('#drawer-handle').click({ force: true });
+    await page.locator('#drawer-handle').click();
     await expect(page.locator('#top-drawer')).toHaveClass(/expanded/);
 
     const firstPiece = page.locator('.piece-item[data-key]:not(.note-tool-item)').first();
@@ -1425,7 +1425,7 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     // Clicking it should actually toggle the drawer (proves the click handler got bound)
     const drawer = page.locator('#top-drawer');
     await expect(drawer).not.toHaveClass(/expanded/);
-    await page.locator('#drawer-handle').click({ force: true });
+    await page.locator('#drawer-handle').click();
     await expect(drawer).toHaveClass(/expanded/);
 
     // The piece carousel should have been relocated into the always-visible area and be visible
@@ -1447,7 +1447,7 @@ test.describe('Mobile Viewport and Layout Tests', () => {
       expect(drawerBox.height).toBeLessThan(10);
 
       // Click handle -> drawer expands, title and modes become visible
-      await drawerHandle.click({ force: true });
+      await drawerHandle.click();
       await expect(drawer).toHaveClass(/expanded/);
       await page.waitForTimeout(350);
       const expandedBox = await drawer.boundingBox();
@@ -1616,7 +1616,7 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     const drawerHandle = page.locator('#drawer-handle');
 
     // Open drawer
-    await drawerHandle.click({ force: true });
+    await drawerHandle.click();
     await expect(drawer).toHaveClass(/expanded/);
     await page.waitForTimeout(350);
 
@@ -1636,7 +1636,7 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     const drawer = page.locator('#top-drawer');
     const handle = page.locator('#drawer-handle');
 
-    await handle.click({ force: true });
+    await handle.click();
     await expect(drawer).toHaveClass(/expanded/);
 
     // A real tap almost always drifts a few pixels — simulate touchstart/touchmove(past the
@@ -1812,11 +1812,11 @@ test.describe('Mobile Viewport and Layout Tests', () => {
 
     const closedBefore = (await countVisibleCells(page)).unobscured;
 
-    await page.locator('#drawer-handle').click({ force: true });
+    await page.locator('#drawer-handle').click();
     await expect(page.locator('#top-drawer')).toHaveClass(/expanded/);
     const open = (await countVisibleCells(page)).unobscured;
 
-    await page.locator('#drawer-handle').click({ force: true });
+    await page.locator('#drawer-handle').click();
     await expect(page.locator('#top-drawer')).not.toHaveClass(/expanded/);
     const closedAfter = (await countVisibleCells(page)).unobscured;
 
