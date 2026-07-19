@@ -152,8 +152,14 @@ const Board = {
         const rotations = [0, 1, 2, 3, 4, 5];
         
         if (typeof App !== 'undefined' && App.currentMode === 'gravity') {
+            // Anchor columns must be scanned a bit wider than the true grid (-5..4): a piece can
+            // legally overhang past either wall while keeping a toe-hold, and its widest local
+            // cell offset (2, both directions, across every piece/rotation -- verified by
+            // exhaustive scan) pushes the anchor that reaches the outermost toe-hold position to
+            // col -7 on the left and col 6 on the right. Scanning a narrower range risks missing
+            // a real legal placement and falsely declaring game over.
             for (let q = 0; q <= 20; q++) {
-                for (let col = -6; col <= 5; col++) {
+                for (let col = -7; col <= 6; col++) {
                     const p = col - Math.floor(q / 2);
                     for (const rot of rotations) {
                         if (this.checkActivePlacement(nextPieceType, p, q, rot)) {

@@ -546,6 +546,42 @@ try {
     Board.cells.clear();
     console.log("PASS: Gravity pieces can no longer lock on top of leftover off-grid overhang debris!");
 
+    // BUG (flagged live): checkGameOver's gravity-mode anchor scan only tries anchor columns
+    // -6..5, but a piece can legally overhang past either wall while keeping a toe-hold on the
+    // true grid (-5..4). Empirically scanning every piece x rotation x row on an empty board
+    // (see scratchpad verification) confirms the true necessary range is -7..6, not -6..5 -- one
+    // column short on each side. If the ONLY legal placement left on a nearly-full board
+    // requires an anchor outside -6..5, the old scan misses it and falsely declares game over.
+    //
+    // 'L' rotation 0 at anchor col -7, row 1 is used here (not 'I') because 'I' is
+    // rotationally symmetric: its own col-7 overhang is also reachable via rotation+3 at col-6,
+    // which sits inside the old range and would mask the bug. 'L' has no such symmetric twin
+    // inside -6..5 for this placement (verified empirically), so it isolates the range gap.
+    console.log("Running Gravity checkGameOver overhang-anchor range test...");
+    App.currentMode = 'gravity';
+    Board.cells.clear();
+
+    // 'L' rotation 0 at anchor p=-7, q=1 occupies (-8,2),(-7,1),(-6,0),(-5,0) -- only (-5,0) is
+    // on-grid (col -5, the toe-hold). Fill every other cell in a wide margin around the cup
+    // solid, leaving only this piece's own footprint free.
+    const footprint = new Set(['-8,2', '-7,1', '-6,0', '-5,0']);
+    for (let q = 0; q <= 20; q++) {
+        for (let col = -14; col <= 13; col++) {
+            const p = col - Math.floor(q / 2);
+            const key = `${p},${q}`;
+            if (footprint.has(key)) continue;
+            Board.cells.set(key, { type: 'X', color: '#ffffff' });
+        }
+    }
+
+    if (Board.checkGameOver('L')) {
+        console.error("FAIL: checkGameOver('L') should be false -- a legal far-left-overhang placement exists (anchor col -7), outside the old -6..5 scan range!");
+        process.exit(1);
+    }
+
+    Board.cells.clear();
+    console.log("PASS: checkGameOver's anchor-column scan reaches far enough to find legal far-overhang placements!");
+
     process.exit(0);
 } catch (err) {
     console.error("FAIL: App test failed with error:", err.stack || err.message);
