@@ -123,6 +123,7 @@ const GravityMode = {
     },
 
     tick: function() {
+        if (typeof Replay !== 'undefined') Replay.recordTick();
         if (this.state.isGameOver || this.state.isPaused) return;
 
         const down = this.getDown(this.state.p, this.state.q);

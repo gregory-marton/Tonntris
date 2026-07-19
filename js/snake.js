@@ -142,6 +142,7 @@ const SnakeMode = {
     },
 
     tick: function() {
+        if (typeof Replay !== 'undefined') Replay.recordTick();
         if (this.state.isGameOver || this.state.isPaused || this.state.isFlourishing) return;
 
         // Apply heading update

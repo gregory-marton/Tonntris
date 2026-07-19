@@ -606,6 +606,28 @@ try {
     }
     console.log("PASS: Replay.log is a ring buffer that evicts the oldest events first, capped at MAX_EVENTS!");
 
+    // Deterministic replay reconstruction: wall-clock timing turned out to be fragile for long
+    // real sessions (small timing differences during replay compounded into a completely
+    // different eventual game outcome), so every recorded event is stamped with a running count
+    // of automatic-tick advances instead -- a replay tool calls tick() directly that many times
+    // between events, with no timing involved at all.
+    console.log("Running Replay.recordTick() event-stamping test...");
+    ReplayObj.log = [];
+    ReplayObj.tickSeq = 0;
+    ReplayObj.record({ type: 'keydown', t: 1, key: 'a' });
+    ReplayObj.recordTick();
+    ReplayObj.recordTick();
+    ReplayObj.record({ type: 'keydown', t: 2, key: 'b' });
+    ReplayObj.recordTick();
+    ReplayObj.record({ type: 'keydown', t: 3, key: 'c' });
+    if (ReplayObj.log[0].tick !== 0 || ReplayObj.log[1].tick !== 2 || ReplayObj.log[2].tick !== 3) {
+        console.error(`FAIL: each recorded event should be stamped with the tick count AT THE MOMENT it was recorded! Got: ${JSON.stringify(ReplayObj.log.map(e => e.tick))}`);
+        process.exit(1);
+    }
+    ReplayObj.log = [];
+    ReplayObj.tickSeq = 0;
+    console.log("PASS: Replay.record() stamps every event with the current tick count, so the delta between two events is exactly how many automatic ticks fired in between!");
+
     // Keystrokes/taps alone can't recreate a session: Gravity/Blast draw random pieces via
     // Math.random(), so replaying the same inputs against a fresh (differently-random) session
     // reproduces nothing without also knowing what Math.random() itself produced. seedRandom()
@@ -711,17 +733,34 @@ try {
     console.log("Running scripts/replay-to-gif.js option parsing test...");
     const { parseArgs, isVirtualButtonTarget } = require('../scripts/replay-to-gif.js');
     const defaultOpts = parseArgs(['session.json']);
-    if (defaultOpts.out !== 'session.gif') {
-        console.error(`FAIL: parseArgs() should default --out to <basename>.gif next to the input! Got: ${defaultOpts.out}`);
+    if (defaultOpts.out !== 'session.gif' || defaultOpts.viewerOut !== 'session.viewer.html') {
+        console.error(`FAIL: parseArgs() should default --out to <basename>.gif and --viewer-out to <basename>.viewer.html, both next to the input! Got: out=${defaultOpts.out} viewerOut=${defaultOpts.viewerOut}`);
         process.exit(1);
     }
     if (defaultOpts.baseUrl !== 'http://localhost:8001' || defaultOpts.speed !== 1 || defaultOpts.maxWait !== 300000 || defaultOpts.frameDelay !== 700 || defaultOpts.keepFrames !== false) {
         console.error(`FAIL: parseArgs() defaults are wrong! Got: ${JSON.stringify(defaultOpts)}`);
         process.exit(1);
     }
+    // The viewer is the primary local, no-publish-step way to actually step through frames --
+    // it and the GIF both default to on, since a fresh bug report should never require deciding
+    // up front which output you'll want.
+    if (defaultOpts.makeGif !== true || defaultOpts.makeViewer !== true) {
+        console.error(`FAIL: parseArgs() should default to producing both the GIF and the local HTML viewer! Got: ${JSON.stringify(defaultOpts)}`);
+        process.exit(1);
+    }
     const customOpts = parseArgs(['a/session.json', '--out=b/out.gif', '--speed=2', '--keep-frames']);
     if (customOpts.out !== 'b/out.gif' || customOpts.speed !== 2 || customOpts.keepFrames !== true) {
         console.error(`FAIL: parseArgs() should honor explicit flags! Got: ${JSON.stringify(customOpts)}`);
+        process.exit(1);
+    }
+    const noGifOpts = parseArgs(['session.json', '--no-gif', '--viewer-out=custom.html']);
+    if (noGifOpts.makeGif !== false || noGifOpts.makeViewer !== true || noGifOpts.viewerOut !== 'custom.html') {
+        console.error(`FAIL: parseArgs() should honor --no-gif and --viewer-out! Got: ${JSON.stringify(noGifOpts)}`);
+        process.exit(1);
+    }
+    const noViewerOpts = parseArgs(['session.json', '--no-viewer']);
+    if (noViewerOpts.makeViewer !== false || noViewerOpts.makeGif !== true) {
+        console.error(`FAIL: parseArgs() should honor --no-viewer without disabling the GIF! Got: ${JSON.stringify(noViewerOpts)}`);
         process.exit(1);
     }
     console.log("PASS: scripts/replay-to-gif.js's parseArgs() applies sane defaults and honors overrides!");

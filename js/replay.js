@@ -43,17 +43,45 @@ for the JavaScript code in this file.
  * A player who hits a bug can open the browser console and type copy(replay()) to get their
  * seed, viewport history, and last few thousand real inputs as JSON, without having to reproduce
  * the issue with any special instrumentation pre-armed -- the recording was already running.
+ *
+ * Every recorded event also carries a `tick` count (see recordTick) -- the number of automatic
+ * mode advances (GravityMode/SnakeMode's setInterval-driven tick()) that have fired so far. A
+ * replay tool can reconstruct the exact interleaving of automatic ticks and player input by
+ * calling tick() directly that many times between events, rather than inferring it from
+ * wall-clock deltas -- which turned out to be fragile for long sessions with real thinking-pauses
+ * (small timing differences during replay compounded into a completely different outcome).
  */
 const Replay = {
     MAX_EVENTS: 5000,
     log: [],
     seed: null,
+    tickSeq: 0,
 
     record: function(entry) {
+        // Stamp every recorded event with the current automatic-tick count (see recordTick) --
+        // the delta between two consecutive events' `tick` values is exactly how many automatic
+        // advances (GravityMode/SnakeMode's setInterval-driven tick()) fired in between. This is
+        // what makes replay deterministic: instead of inferring "how many ticks happened during
+        // this gap" from wall-clock deltas (fragile -- a real ~13-minute session with genuine
+        // multi-second thinking-pauses turned out to be exquisitely sensitive to sub-percent
+        // timing differences during replay, changing the eventual outcome completely), a replay
+        // tool can just call tick() this many times directly, with no timing involved at all.
+        entry.tick = this.tickSeq;
         this.log.push(entry);
         if (this.log.length > this.MAX_EVENTS) {
             this.log.shift();
         }
+    },
+
+    // Called as the first line of any mode's automatic tick() (GravityMode, SnakeMode) --
+    // increments a single counter shared across whichever mode is currently active, since only
+    // one mode's timer ever runs at a time. Deliberately NOT its own log entry: at a 100ms drop
+    // interval (Gravity's fastest, after enough line clears) a long session could produce far
+    // more ticks than player inputs, which would evict real early-session events out of the
+    // MAX_EVENTS ring buffer. Stamping the running count onto the events already being recorded
+    // costs one integer each instead.
+    recordTick: function() {
+        this.tickSeq++;
     },
 
     describeTarget: function(el) {
