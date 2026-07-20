@@ -1253,8 +1253,11 @@ test.describe('Mobile Viewport and Layout Tests', () => {
       const boardCenterX = (Math.min(...positions.map(pos => pos.x)) + Math.max(...positions.map(pos => pos.x))) / 2;
       const boardCenterY = (Math.min(...positions.map(pos => pos.y)) + Math.max(...positions.map(pos => pos.y))) / 2;
 
-      const viewBoxCenterX = Render.viewX + (800 * Render.zoom) / 2;
-      const viewBoxCenterY = Render.viewY + (600 * Render.zoom) / 2;
+      // The fit is against the SVG element's actual on-screen aspect ratio (see #48,
+      // Render.getAspectMatchedRefBox), not a fixed 800x600 box.
+      const { refW, refH } = Render.getAspectMatchedRefBox();
+      const viewBoxCenterX = Render.viewX + (refW * Render.zoom) / 2;
+      const viewBoxCenterY = Render.viewY + (refH * Render.zoom) / 2;
 
       return { boardCenterX, boardCenterY, viewBoxCenterX, viewBoxCenterY };
     });

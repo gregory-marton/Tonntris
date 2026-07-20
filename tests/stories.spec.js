@@ -46,7 +46,7 @@ test.describe('Story tests', () => {
     page.on('dialog', async d => { await d.accept(); });
   });
 
-  test('Blast story: a real captured session plays through to Game Over', async ({ page }) => {
+  test('Blast story: a real captured session plays through deterministically', async ({ page }) => {
     const seed = 2251539051;
     await page.setViewportSize({ width: 1179, height: 868 });
     await page.goto(`/?seed=${seed}`);
@@ -87,17 +87,24 @@ test.describe('Story tests', () => {
     // The exact real outcome of replaying this exact real session -- verified by actually
     // running it (not derived by hand), so this is a regression baseline: if a future change to
     // Blast's placement, rotation, or collision logic ever alters what this specific real
-    // sequence of taps and rotations produces, this is the test that catches it. This session
-    // happens to reach a genuine Game Over, exercising an otherwise rare, hard-to-set-up scenario
-    // for free.
+    // sequence of taps and rotations produces, this is the test that catches it.
+    //
+    // These values changed under #48 (aspect-matched viewBox fit, matching Gravity's #44): each
+    // pointerdown is resolved to a cell via document.elementFromPoint() at the ORIGINAL recorded
+    // pixel coordinates, so any change to how the board's viewBox maps pixels to cells shifts
+    // which cell each recorded coordinate now lands on -- inherent to pinning a test to raw
+    // screen pixels rather than app state. Originally this session reached a genuine Game Over
+    // (linesCleared: 2, cellCount: 63); under the corrected fit the same real taps now land on
+    // different cells and the session ends earlier without clearing a line. Coverage of the
+    // Game Over path is lost until a fresh real session is captured under the new layout.
     const final = await page.evaluate(() => ({
       linesCleared: BlastMode.state.linesCleared,
       cellCount: Board.cells.size,
       isGameOver: BlastMode.state.isGameOver,
     }));
-    expect(final.linesCleared).toBe(2);
-    expect(final.cellCount).toBe(63);
-    expect(final.isGameOver).toBe(true);
+    expect(final.linesCleared).toBe(0);
+    expect(final.cellCount).toBe(40);
+    expect(final.isGameOver).toBe(false);
 
     await page.screenshot({ path: 'test-results/blast-story-final.png' });
   });

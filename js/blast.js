@@ -36,6 +36,22 @@ const BlastMode = {
     },
 
     init: function() {
+        // #tonnetz-svg's on-screen box can still be settling the first time refreshBoard() runs
+        // here (mobile layout uses `100dvh`, which Chromium can take an extra tick to resolve to
+        // its final value) -- refreshBoard()'s aspect-matched fit (see
+        // Render.getAspectMatchedRefBox) would otherwise permanently fit against that transient,
+        // too-small size, since nothing else re-triggers it once the game is running. A
+        // ResizeObserver re-fits whenever the element's actual box changes, for any reason,
+        // self-correcting regardless of the specific cause. Unlike Gravity's refreshBoard() (which
+        // draws the active piece itself), Blast's refreshBoard() only draws the lattice and locked
+        // cells -- the active-piece ghost is a separate updateGhost() step in refreshUI() -- so the
+        // observer must call refreshUI(), not refreshBoard() alone, or its first (always-fires-once)
+        // callback wipes the ghost via drawLattice() without redrawing it.
+        if (!this._resizeObserver && typeof ResizeObserver !== 'undefined' && Render.svg) {
+            this._resizeObserver = new ResizeObserver(() => this.refreshUI());
+            this._resizeObserver.observe(Render.svg);
+        }
+
         this.reset();
         this.setupEvents();
     },
@@ -149,8 +165,12 @@ const BlastMode = {
                 if (Board.isInBounds(p, q)) boardCells.push({ p, q });
             }
         }
-        const fit = Render.getFitView(boardCells, Render.HEX_R * 2, 1.25);
-        Render.updateView(fit.viewX, fit.viewY, fit.zoom);
+        // Fit the viewBox against the SVG element's actual on-screen aspect ratio rather than the
+        // historical fixed 4:3 default (see Render.getAspectMatchedRefBox and #44's Gravity fix),
+        // so the board fills the available space instead of leaving letterboxed margins.
+        const { refW, refH } = Render.getAspectMatchedRefBox();
+        const fit = Render.getFitView(boardCells, Render.HEX_R * 2, 1.25, refW, refH);
+        Render.updateView(fit.viewX, fit.viewY, fit.zoom, refW, refH);
     },
 
     setupEvents: function() {
