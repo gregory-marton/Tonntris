@@ -981,7 +981,7 @@ try {
     console.log("PASS: Replay.soundLog is its own capped, amortized-eviction log, independent of the input-event log!");
 
     console.log("Running scripts/replay-to-gif.js option parsing test...");
-    const { parseArgs, isVirtualButtonTarget } = require('../scripts/replay-to-gif.js');
+    const { parseArgs, isVirtualButtonTarget, resolveModeOptionIndex } = require('../scripts/replay-to-gif.js');
     const defaultOpts = parseArgs(['session.json']);
     if (defaultOpts.out !== 'session.gif' || defaultOpts.viewerOut !== 'session.viewer.html') {
         console.error(`FAIL: parseArgs() should default --out to <basename>.gif and --viewer-out to <basename>.viewer.html, both next to the input! Got: out=${defaultOpts.out} viewerOut=${defaultOpts.viewerOut}`);
@@ -1025,6 +1025,31 @@ try {
         process.exit(1);
     }
     console.log("PASS: scripts/replay-to-gif.js's isVirtualButtonTarget() only matches #m-btn-*/#snake-btn-* ids!");
+
+    // Real bug found live (GitHub issue #6 investigation): a desktop session recorded at
+    // 1179x868 -- wider than tall, but a real desktop window, nowhere near the mobile-landscape
+    // breakpoint -- was bucketed as the mobile vertical-column mode-selector layout purely
+    // because width > height, resolving a click at x=1119 (clearly "gravity", the rightmost of
+    // 5 options) to index 0 ("sandbox") instead. The reconstruction silently stayed in Sandbox
+    // for the entire replay, producing zero of the session's real Gravity sounds/state.
+    console.log("Running scripts/replay-to-gif.js mode-option bucketing test...");
+    const desktopLandscapeIdx = resolveModeOptionIndex(
+        { x: 1119.1640625, y: 41.921875 }, { width: 1179, height: 868 }, 5
+    );
+    if (desktopLandscapeIdx !== 4) {
+        console.error(`FAIL: a desktop-sized landscape viewport (1179x868, above the 950px mobile-landscape breakpoint) should bucket by X (horizontal row), resolving x=1119 of 1179 to the last option (index 4, "gravity"). Got index ${desktopLandscapeIdx}.`);
+        process.exit(1);
+    }
+    // A genuinely mobile-landscape viewport (<=950px wide, landscape) SHOULD bucket by Y
+    // (vertical column) -- this is the case the original width>height heuristic was for.
+    const mobileLandscapeIdx = resolveModeOptionIndex(
+        { x: 200, y: 370 }, { width: 852, height: 393 }, 5
+    );
+    if (mobileLandscapeIdx !== 4) {
+        console.error(`FAIL: a real mobile-landscape viewport (852x393, at/under the 950px breakpoint) should bucket by Y (vertical column), resolving y=370 of 393 to the last option (index 4). Got index ${mobileLandscapeIdx}.`);
+        process.exit(1);
+    }
+    console.log("PASS: scripts/replay-to-gif.js's mode-option bucketing matches Render.isMobileLandscape's exact breakpoint, not a naive width>height check!");
 
     process.exit(0);
 } catch (err) {

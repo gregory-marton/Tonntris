@@ -202,6 +202,25 @@ function isVirtualButtonTarget(target) {
     return typeof target === 'string' && /^#(m-btn-|snake-btn-)/.test(target);
 }
 
+// Which of the N mode-option buttons a recorded tap/click at (x, y) hit, given the viewport it
+// was recorded at. Pure and separately testable because getting this one wrong makes the rest
+// of a replay meaningless (see resolveAndClick's div.mode-option branch for the full story).
+//
+// Mirrors Render.isMobileLandscape's EXACT breakpoint (max-width: 950px AND landscape) for
+// whether the mode row is a vertical column (mobile landscape) or a horizontal row (portrait,
+// OR any landscape-shaped viewport wider than 950px -- i.e. a real desktop window, which is
+// landscape-shaped too but uses the ordinary horizontal row, not the mobile layout). Found
+// live: a desktop session recorded at 1179x868 -- wider than tall, but nowhere near the mobile
+// breakpoint -- was bucketed as if it were the vertical mobile-landscape layout purely because
+// width > height, silently resolving a tap at x=1119 (of 1179, clearly "gravity", the rightmost
+// option) to index 0 ("sandbox") instead.
+function resolveModeOptionIndex(ev, recordedViewport, numOptions) {
+    const isMobileLandscape = recordedViewport.width <= 950 && recordedViewport.width > recordedViewport.height;
+    const coord = isMobileLandscape ? ev.y : ev.x;
+    const span = isMobileLandscape ? recordedViewport.height : recordedViewport.width;
+    return Math.max(0, Math.min(numOptions - 1, Math.floor((coord / span) * numOptions)));
+}
+
 // Every real recorded session so far has come from a touch device (meta.maxTouchPoints > 0), and
 // a real touchscreen tap has no preceding hover/move phase at all. Playwright's mouse API
 // (page.mouse.click / locator.click) always sends a mousemove immediately before mousedown --
@@ -286,19 +305,13 @@ async function resolveAndClick(page, ev, recordedViewport) {
     // sidesteps the cross-environment rendering discrepancy entirely, since it never asks the
     // current browser where the buttons actually are.
     if (target === 'div.mode-option' && recordedViewport) {
-        // The mode slider is a horizontal row in portrait, a vertical column in landscape (see
-        // js/main.js's setMode, which slides the active-pill indicator along X or Y depending on
-        // orientation) -- bucket along whichever axis matches.
-        const landscape = recordedViewport.width > recordedViewport.height;
-        const coord = landscape ? ev.y : ev.x;
-        const span = landscape ? recordedViewport.height : recordedViewport.width;
-        const clicked = await page.evaluate(({ coord, span }) => {
+        // See resolveModeOptionIndex's comment for why this can't just check width > height.
+        const clicked = await page.evaluate(({ idx }) => {
             const els = Array.from(document.querySelectorAll('.mode-option'));
-            if (els.length === 0) return false;
-            const idx = Math.max(0, Math.min(els.length - 1, Math.floor((coord / span) * els.length)));
+            if (els.length === 0 || idx >= els.length) return false;
             els[idx].click();
             return true;
-        }, { coord, span });
+        }, { idx: resolveModeOptionIndex(ev, recordedViewport, 5) });
         if (clicked) return;
         await tap(page, ev.x, ev.y);
         return;
@@ -344,10 +357,16 @@ async function run(opts) {
     let lastCaptureT = null;
     const warnings = [];
 
+    // Match the recorded session's actual touch capability -- forcing hasTouch:true
+    // unconditionally made 'ontouchstart' in window true even for a real desktop/mouse session
+    // (meta.maxTouchPoints === 0), which can steer the replayed app down entirely different
+    // code paths than what actually ran (e.g. js/main.js's own `isTouch` check gates whether
+    // touch-specific handlers get bound at all, and js/sandbox.js's mouse-drag panning is
+    // gated on `!isTouch`).
     const browser = await chromium.launch();
     const context = await browser.newContext({
         viewport,
-        hasTouch: true,
+        hasTouch: !!(data.meta && data.meta.maxTouchPoints > 0),
         userAgent: (data.meta && data.meta.userAgent) || undefined,
     });
     const page = await context.newPage();
@@ -574,4 +593,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { parseArgs, isVirtualButtonTarget, resolveAndClick, getCellCountSnapshot };
+module.exports = { parseArgs, isVirtualButtonTarget, resolveModeOptionIndex, resolveAndClick, getCellCountSnapshot };
