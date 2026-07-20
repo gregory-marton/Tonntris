@@ -384,3 +384,29 @@ for (const mode of ['sandbox', 'blast']) {
     expect(placedCount).toBe(0);
   });
 }
+
+// INVARIANT: the README promises file:// support ("no server or build steps needed"), so
+// opening index.html directly must not log real console errors. This bypasses the configured
+// baseURL/webServer entirely and loads the file straight off disk, the way a user actually
+// would by double-clicking it.
+test.describe('file:// support', () => {
+  // playwright.config.js sets serviceWorkers: 'block' globally (to avoid SW-related flakiness
+  // elsewhere in this suite), which makes registration fail with Playwright's own "blocked"
+  // message -- already specially handled with a friendly console.log, not console.error -- and
+  // would silently hide the REAL file://-origin error this test exists to catch. Overridden
+  // back to 'allow' just within this describe block so the genuine error (or lack of one)
+  // actually surfaces.
+  test.use({ serviceWorkers: 'allow' });
+
+  test('opening index.html via file:// (no server) logs no console errors', async ({ page }) => {
+    const path = require('path');
+    const errors = [];
+    page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
+    page.on('pageerror', err => errors.push(err.message));
+
+    await page.goto('file://' + path.resolve(__dirname, '..', 'index.html'));
+    await page.waitForTimeout(1000);
+
+    expect(errors, `console errors when opened via file://: ${JSON.stringify(errors)}`).toEqual([]);
+  });
+});

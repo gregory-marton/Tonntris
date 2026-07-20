@@ -966,8 +966,11 @@ const App = {
 window.onload = () => {
     App.init();
 
-    // Register Service Worker for PWA compatibility
-    if ('serviceWorker' in navigator) {
+    // Register Service Worker for PWA compatibility. Skipped entirely on file:// --
+    // registration is fundamentally unsupported there ("URL protocol of the current
+    // origin ('null') is not supported"), not just blocked, so there's no useful
+    // outcome to wait on.
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
         navigator.serviceWorker.register('./sw.js')
             .then(reg => {
                 if (reg) {
