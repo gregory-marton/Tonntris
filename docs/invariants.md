@@ -203,11 +203,10 @@ mobile — worth understanding together since fixing only one has no visible eff
    gets letterboxed inside that box by the browser's default `preserveAspectRatio`, moving the
    wasted space from outside the SVG to inside it — invisible from outside, but just as wasteful.
    Fixed by `Render.getAspectMatchedRefBox()`, which Gravity's `refreshBoard()` uses to fit
-   against the SVG's actual current aspect ratio instead of the fixed default. Every other
-   caller of `getFitView`/`updateView` omits this and keeps the historical 800x600 behavior
-   unchanged — Blast shares the same underlying issue but is deliberately not yet migrated,
-   since it also supports free two-finger panning through a separate shared gesture handler
-   that would need its own careful handling of a persisted reference-box aspect ratio.
+   against the SVG's actual current aspect ratio instead of the fixed default. Blast shared the
+   same underlying issue and was migrated the same way in task #48; every other caller of
+   `getFitView`/`updateView` still omits this and keeps the historical 800x600 behavior
+   unchanged.
 
 Mobile CSS layout can also report a transient, too-small size for a `100dvh`-based container
 before Chromium finishes resolving it — `GravityMode.init()` sets up a `ResizeObserver` on
@@ -233,6 +232,30 @@ self-mirroring under a rotation-only piece system — rotating it by some multip
 its own mirror image, verified directly for both the 60° bend (`V`) and the 120° bend (`>`). So
 there is no second, genuinely distinct 120°-bend shape to give `<` — the correct fix was
 removing the duplicate outright (`<` no longer exists).
+
+### INV-23: Live MIDI hardware input plays and highlights exactly like the equivalent tap
+
+In any mode with a "play a free note" concept (Sandbox, Melody), a note-on message from a
+connected MIDI controller (`js/midi-input.js`, `MidiInput.handleNoteOn`) must produce the same
+audible/visible result as tapping the corresponding cell would: `Synth.playNote` with the same
+MIDI number, and every currently-rendered cell sharing that pitch flashed via
+`Render.highlightByMidi` (a Tonnetz places the same pitch at multiple lattice positions by
+design — see INV-4/INV-5 for the tap-driven version of this same idea). In Melody mode, the note
+must also reach the practice game's own logic (`MidiMode.handleUserInputNote`), so playing the
+physical keyboard advances a song exactly like tapping the matching cells would.
+
+This works for any class-compliant MIDI device, not specifically the isomorphic ("Tonnetz
+hardware") controller it was built and tested against (a C-Thru Music AXiS-49) — messages are
+matched purely by MIDI note number, never by the sending device's own physical key layout, so a
+standard piano-style keyboard plugged in instead behaves identically. Connection is opt-in via
+a click on `#midi-connect-btn`, not attempted automatically on page load: `requestMIDIAccess()`
+triggers a native browser permission prompt with no user-gesture requirement, so requesting it
+unconditionally at startup would prompt every visitor, including the many with no MIDI device.
+
+**Test:** `tests/invariants.spec.js` — "INV-23: live MIDI hardware note-on plays and highlights
+the same note as a Sandbox tap" and "INV-23: live MIDI hardware note-on advances Melody mode's
+practice sequence like a tap" (both drive a mocked `navigator.requestMIDIAccess`, since no real
+MIDI hardware is available in CI).
 
 The test enumerates the *entire* shape space per size (starting from the single-cell shape and
 growing by every way to attach one more cell, deduplicating by canonical rotation at each step)

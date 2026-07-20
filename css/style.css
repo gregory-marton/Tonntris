@@ -296,6 +296,11 @@ svg {
     word-break: break-all;
 }
 
+#midi-connect-btn.connected {
+    opacity: 1;
+    filter: drop-shadow(0 0 3px var(--accent));
+}
+
 .cell.active-note {
     fill: var(--accent) !important;
     stroke: white !important;

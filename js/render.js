@@ -82,6 +82,29 @@ const Render = {
         return poly;
     },
 
+    // Flashes every rendered cell sharing a given MIDI pitch (a Tonnetz places the same note at
+    // multiple lattice positions by design, so "the cell for this note" is really "every cell for
+    // this note" -- see data-midi in drawLattice/createHex). Generic across modes: originally
+    // Melody-mode-only (MidiMode.highlightCellByMidi), moved here once Sandbox and live MIDI
+    // hardware input needed the exact same behavior with no mode-specific state involved.
+    highlightByMidi: function(midi, duration = 300) {
+        const polygons = document.querySelectorAll(`polygon[data-midi="${midi}"]`);
+        polygons.forEach(p => {
+            p.classList.remove('active-note');
+            void p.offsetWidth; // Force layout flush
+            p.classList.add('active-note');
+
+            if (p.activeTimeoutId) {
+                clearTimeout(p.activeTimeoutId);
+            }
+
+            p.activeTimeoutId = setTimeout(() => {
+                p.classList.remove('active-note');
+                p.activeTimeoutId = null;
+            }, duration);
+        });
+    },
+
     createLabel: function(p, q, text) {
         const pos = this.getScreenPos(p, q);
         const t = document.createElementNS(this.NS, 'text');

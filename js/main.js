@@ -58,6 +58,7 @@ const App = {
         this.setupMobileControls();
         this.setupTouchGestures();
         this.updateVersionTag();
+        this.setupMidiInput();
 
         window.addEventListener('resize', () => {
             this.setupMobileControls();
@@ -906,6 +907,18 @@ const App = {
                 }
             }
         });
+    },
+
+    setupMidiInput: function() {
+        const btn = document.getElementById('midi-connect-btn');
+        if (!btn) return;
+        if (typeof MidiInput === 'undefined' || !MidiInput.isSupported()) {
+            btn.style.display = 'none';
+            return;
+        }
+        btn.onclick = () => {
+            MidiInput.connect().catch(err => console.warn('MIDI connection failed:', err));
+        };
     },
 
     collapseMobileDrawer: function() {

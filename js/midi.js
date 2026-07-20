@@ -267,6 +267,15 @@ const MidiMode = {
         this.handleUserInputNote(midi);
     },
 
+    // Same as playUserNote, but for an input source that only knows the note played, not which
+    // specific cell was touched (live MIDI hardware input -- see js/midi-input.js). Highlights
+    // every cell sharing that pitch instead of one specific (p, q).
+    playUserNoteByMidi: function(midi) {
+        Render.highlightByMidi(midi, 250);
+        Synth.playNote(midi);
+        this.handleUserInputNote(midi);
+    },
+
     getQwertyKey: function(p, q) {
         if (!this.state.reverseQwertyMap) return null;
         return this.state.reverseQwertyMap[`${p},${q}`] || null;
@@ -288,24 +297,6 @@ const MidiMode = {
                 polygon.activeTimeoutId = null;
             }, duration);
         }
-    },
-
-    highlightCellByMidi: function(midi, duration = 300) {
-        const polygons = document.querySelectorAll(`polygon[data-midi="${midi}"]`);
-        polygons.forEach(p => {
-            p.classList.remove('active-note');
-            void p.offsetWidth; // Force layout flush
-            p.classList.add('active-note');
-            
-            if (p.activeTimeoutId) {
-                clearTimeout(p.activeTimeoutId);
-            }
-            
-            p.activeTimeoutId = setTimeout(() => {
-                p.classList.remove('active-note');
-                p.activeTimeoutId = null;
-            }, duration);
-        });
     },
 
     setStatus: function(text, type = 'info') {
@@ -439,7 +430,7 @@ const MidiMode = {
             // Schedule note sound and visual highlight
             const tId1 = setTimeout(() => {
                 Synth.playNote(note.midi);
-                this.highlightCellByMidi(note.midi, note.duration * 1000);
+                Render.highlightByMidi(note.midi, note.duration * 1000);
                 this.updateDifficultyUI(i);
             }, scheduledTime);
 
@@ -479,7 +470,7 @@ const MidiMode = {
 
             const tId = setTimeout(() => {
                 Synth.playNote(note.midi);
-                this.highlightCellByMidi(note.midi, note.duration * 1000);
+                Render.highlightByMidi(note.midi, note.duration * 1000);
                 this.updateDifficultyUI(i);
             }, scheduledTime);
 
@@ -599,7 +590,7 @@ const MidiMode = {
         // Flash corresponding cells on the lattice
         for (let i = 0; i < 5; i++) {
             setTimeout(() => {
-                victoryChord.forEach(note => this.highlightCellByMidi(note, 150));
+                victoryChord.forEach(note => Render.highlightByMidi(note, 150));
             }, i * 300);
         }
     },

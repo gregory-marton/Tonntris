@@ -253,6 +253,65 @@ test.describe('Invariant tests', () => {
   });
 
   // ────────────────────────────────────────────────────────────────────────
+  // INV-23: live MIDI hardware input behaves exactly like the equivalent tap. No real MIDI
+  // hardware is available in CI, so navigator.requestMIDIAccess is mocked with a fake input
+  // device -- everything downstream of that (js/midi-input.js's MidiInput.handleNoteOn onward)
+  // is the real, unmocked app code.
+  // ────────────────────────────────────────────────────────────────────────
+
+  const installFakeMidiDevice = (page) => page.evaluate(() => {
+    const fakeInput = { id: 'fake-1', name: 'Test Keyboard', state: 'connected', onmidimessage: null };
+    window.__fakeMidiInput = fakeInput;
+    navigator.requestMIDIAccess = () => Promise.resolve({
+      inputs: new Map([['fake-1', fakeInput]]),
+      outputs: new Map(),
+      onstatechange: null,
+    });
+  });
+
+  const connectFakeMidiDevice = async (page) => {
+    await installFakeMidiDevice(page);
+    await page.evaluate(() => document.getElementById('midi-connect-btn').click());
+    await page.waitForFunction(() => document.getElementById('midi-connect-btn').classList.contains('connected'));
+  };
+
+  const sendFakeNoteOn = (page, midi) => page.evaluate((m) => {
+    window.__fakeMidiInput.onmidimessage({ data: [0x90, m, 100] });
+  }, midi);
+
+  test('INV-23: live MIDI hardware note-on plays and highlights the same note as a Sandbox tap', async ({ page }) => {
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
+    await connectFakeMidiDevice(page);
+
+    await page.evaluate(() => {
+      window.__played = [];
+      Synth.playNote = (midi) => window.__played.push(midi);
+    });
+
+    const expectedMidi = await page.evaluate(() => Tonnetz.getMidi(0, 0));
+    await sendFakeNoteOn(page, expectedMidi);
+
+    const played = await page.evaluate(() => window.__played);
+    expect(played).toEqual([expectedMidi]);
+
+    const cell = page.locator('polygon.cell:not(.ghost)[data-p="0"][data-q="0"]');
+    await expect(cell).toHaveClass(/active-note/);
+  });
+
+  test('INV-23: live MIDI hardware note-on advances Melody mode\'s practice sequence like a tap', async ({ page }) => {
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="midi"]').click());
+    await expect(page.locator('#midi-game-status')).toHaveText(/Your turn!/, { timeout: 8000 });
+    await connectFakeMidiDevice(page);
+
+    const before = await page.evaluate(() => MidiMode.state.userIndex);
+    const targetMidi = await page.evaluate(() => MidiMode.state.melody[MidiMode.state.userIndex].midi);
+    await sendFakeNoteOn(page, targetMidi);
+
+    const after = await page.evaluate(() => MidiMode.state.userIndex);
+    expect(after).toBe(before + 1);
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
   // INV-8: Interactive controls never sit closer than a minimum safe distance to the edge of
   // the screen, across the mobile breakpoints — real device chrome (iOS Safari's toolbars,
   // notches, gesture bars) can obscure real estate a flat 0px/10px offset would assume is

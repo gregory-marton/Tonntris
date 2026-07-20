@@ -388,6 +388,17 @@ const SandboxMode = {
         }
     },
 
+    // Plays a note by MIDI pitch alone, with no (p, q) known -- for an input source that isn't a
+    // board tap (live MIDI hardware input, see js/midi-input.js). Always just plays the note,
+    // regardless of whatever piece-placement state is active: unlike a tapped hex (which is
+    // ambiguous between pickup/place/play depending on state), a physical key press has only one
+    // meaning. Highlights every rendered cell sharing that pitch (a no-op if none are currently
+    // on screen) -- a Tonnetz places the same note at multiple lattice positions by design.
+    playNoteByMidi: function(midi) {
+        Render.highlightByMidi(midi, 250);
+        Synth.playNote(midi);
+    },
+
     // Pick up ONLY — never places. Returns true if a piece was picked up.
     pickupPieceAt: function(p, q) {
         const pieceIndex = this.state.placedPieces.findIndex(piece => {
