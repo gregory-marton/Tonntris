@@ -379,7 +379,7 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     };
   `;
 
-  test('dragging a carousel piece onto the board shows a candidate placement, still tappable/rotatable, and only places on swipe down', async ({ page }) => {
+  test('dragging a carousel piece onto the board shows a candidate placement, still tappable/rotatable, and only places on hold', async ({ page }) => {
     const width = page.viewportSize().width;
     if (width >= 768) return;
 
@@ -422,10 +422,10 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     placedCount = await page.locator('.placed-piece').count();
     expect(placedCount).toBe(0);
 
-    // A swipe down should place it, same as any other candidate
+    // Holding the candidate should place it, same as any other candidate
     await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: endX, y: endY });
-    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchmove', x, y), { x: endX, y: endY + 70 });
-    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: endX, y: endY + 70 });
+    await page.waitForTimeout(500);
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: endX, y: endY });
     placedCount = await page.locator('.placed-piece').count();
     expect(placedCount).toBeGreaterThan(0);
   });
@@ -665,7 +665,7 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     expect(placedCount).toBe(0);
   });
 
-  test('tap on an existing placed piece picks it up as the new candidate (Sandbox)', async ({ page }) => {
+  test('holding an existing placed piece picks it up as the new candidate (Sandbox)', async ({ page }) => {
     const width = page.viewportSize().width;
     if (width >= 768) return;
 
@@ -693,7 +693,10 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     const cx = box.x + box.width / 2;
     const cy = box.y + box.height / 2;
 
+    // Holding the placed piece picks it up (a plain tap never does this -- see the dedicated
+    // test for that).
     await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: cx, y: cy });
+    await page.waitForTimeout(500);
     await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy });
 
     placedCount = await page.locator('.placed-piece').count();
@@ -742,7 +745,7 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     expect(placedCount).toBeGreaterThan(0);
   });
 
-  test('swipe DOWN places a piece, swipe UP picks it back up', async ({ page }) => {
+  test('holding the candidate places a piece, holding it again picks it back up', async ({ page }) => {
     const width = page.viewportSize().width;
     if (width >= 768) return;
 
@@ -764,26 +767,26 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     const cx = box.x + box.width / 2;
     const cy = box.y + box.height / 2;
 
-    // SWIPE DOWN to place: fast vertical flick downward (> 50px in < 400ms)
+    // Hold on the candidate to place it
     await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: cx, y: cy });
-    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchmove', x, y), { x: cx, y: cy + 70 });
-    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy + 70 });
+    await page.waitForTimeout(500);
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy });
 
     // Piece should now be placed
-    const placedAfterDown = await page.locator('.placed-piece').count();
-    expect(placedAfterDown).toBeGreaterThan(0);
+    const placedAfterHold1 = await page.locator('.placed-piece').count();
+    expect(placedAfterHold1).toBeGreaterThan(0);
 
-    // SWIPE UP to pick up: fast vertical flick upward
-    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: cx, y: cy + 10 });
-    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchmove', x, y), { x: cx, y: cy - 60 });
-    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy - 60 });
+    // Hold on the now-placed piece to pick it back up
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: cx, y: cy });
+    await page.waitForTimeout(500);
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy });
 
     // Piece should be picked back up (no placed pieces remaining)
-    const placedAfterUp = await page.locator('.placed-piece').count();
-    expect(placedAfterUp).toBe(0);
+    const placedAfterHold2 = await page.locator('.placed-piece').count();
+    expect(placedAfterHold2).toBe(0);
   });
 
-  test('swipe UP over empty space does NOT accidentally place a piece', async ({ page }) => {
+  test('holding empty space away from the candidate does NOT accidentally place or pick up anything', async ({ page }) => {
     const width = page.viewportSize().width;
     if (width >= 768) return;
 
@@ -793,23 +796,23 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     // Select a piece
     await page.locator('.piece-item[data-key]:not(.note-tool-item)').first().click({ force: true });
 
-    // Position ghost at an empty location
+    // Position ghost at one location...
     await page.evaluate(() => {
       SandboxMode.state.hoverCell = { p: 3, q: 3 };
       SandboxMode.updateGhost();
     });
 
-    const cell = page.locator('polygon.cell:not(.ghost)[data-p="3"][data-q="3"]');
+    // ...then hold somewhere else entirely, well clear of the candidate's own cells.
+    const cell = page.locator('polygon.cell:not(.ghost)[data-p="-3"][data-q="1"]');
     const box = await cell.boundingBox();
     if (!box) return; // Cell might be off-screen, skip test
 
     const cx = box.x + box.width / 2;
     const cy = box.y + box.height / 2;
 
-    // Swipe UP over empty space
     await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: cx, y: cy });
-    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchmove', x, y), { x: cx, y: cy - 70 });
-    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy - 70 });
+    await page.waitForTimeout(500);
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy });
 
     // NOTHING should happen — no piece placed
     const placedCount = await page.locator('.placed-piece').count();
@@ -823,19 +826,16 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
     await page.evaluate(touchHelpers);
 
-    // Select a piece and place it via swipe down
+    // Select a piece and place it
     await page.locator('.piece-item[data-key]:not(.note-tool-item)').first().click({ force: true });
     await page.evaluate(() => {
       SandboxMode.state.hoverCell = { p: 0, q: 0 };
-      SandboxMode.updateGhost();
+      SandboxMode.placePiece(0, 0);
     });
-    const cell = page.locator('polygon.cell:not(.ghost)[data-p="0"][data-q="0"]');
+    const cell = page.locator('polygon.cell:not(.ghost)[data-p="0"][data-q="0"]').first();
     const box = await cell.boundingBox();
     const cx = box.x + box.width / 2;
     const cy = box.y + box.height / 2;
-    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: cx, y: cy });
-    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchmove', x, y), { x: cx, y: cy + 70 });
-    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy + 70 });
     expect(await page.locator('.placed-piece').count()).toBeGreaterThan(0);
 
     // Deselect entirely (the note-play tool) — a plain single tap on the placed piece should
@@ -853,7 +853,48 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     expect(selectedAfter).toBeNull();
   });
 
-  test('a single tap on a placed piece that sits within one cell of the candidate ghost does NOT pick it up', async ({ page }) => {
+  test('holding a placed piece still picks it up even when the current candidate ghost sits right next to it', async ({ page }) => {
+    const width = page.viewportSize().width;
+    if (width >= 768) return;
+
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
+    await page.evaluate(touchHelpers);
+
+    // Place piece 'P' at (0,0): rotation-0 cells are (0,-1),(0,0),(0,1),(-1,0) -- see js/pieces.js.
+    await page.evaluate(() => {
+      SandboxMode.state.selectedPiece = 'P';
+      SandboxMode.state.rotation = 0;
+      SandboxMode.placePiece(0, 0);
+    });
+    expect(await page.evaluate(() => SandboxMode.state.placedPieces.length)).toBe(1);
+
+    // Select a second candidate ('Q') and position its ghost so one of its cells is directly
+    // adjacent to P's (0,1) cell -- an entirely ordinary situation: selecting a new piece while
+    // looking at wherever you were last working on the board, right next to something already
+    // placed there. This is the exact scenario from GitHub issue #4 ("tap to pick up only works
+    // sometimes") -- pickup must not depend on where an unrelated candidate happens to be.
+    await page.evaluate(() => {
+      SandboxMode.state.selectedPiece = 'Q';
+      SandboxMode.state.rotation = 0;
+      SandboxMode.state.hoverCell = { p: 2, q: 0 };
+      SandboxMode.updateGhost();
+    });
+
+    // Hold directly on the placed piece's (0,1) cell -- this should pick it up just like
+    // holding any other placed piece, regardless of where the unrelated candidate ghost is.
+    const cell = page.locator('polygon.cell:not(.ghost)[data-p="0"][data-q="1"]').first();
+    const box = await cell.boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: cx, y: cy });
+    await page.waitForTimeout(500);
+    await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy });
+
+    expect(await page.evaluate(() => SandboxMode.state.placedPieces.length)).toBe(0);
+    expect(await page.evaluate(() => SandboxMode.state.selectedPiece)).toBe('P');
+  });
+
+  test('a plain tap on a placed piece never picks it up — pickup is a hold, no matter where the candidate ghost is', async ({ page }) => {
     const width = page.viewportSize().width;
     if (width >= 768) return;
 
@@ -885,8 +926,7 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     await page.evaluate(({ x, y }) => window.__dispatchTouch('touchstart', x, y), { x: cx, y: cy });
     await page.evaluate(({ x, y }) => window.__dispatchTouch('touchend', x, y), { x: cx, y: cy });
 
-    // The placed piece should still be there — the tap was near the ghost, so it's treated as
-    // moving/interacting with the candidate rather than picking up the nearby placed piece.
+    // A quick tap never picks up a placed piece — only a hold does (see the test above).
     expect(await page.locator('.placed-piece').count()).toBe(1);
   });
 

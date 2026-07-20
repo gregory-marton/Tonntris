@@ -505,6 +505,14 @@ const App = {
         let twoFingerStartCenter = null;
         let twoFingerStartView = null;
 
+        // Phone-only: pickup and placement are each their own dedicated gesture (hold), so
+        // a plain tap never does double duty. HOLD_DURATION_MS sits comfortably above the
+        // 250ms tap-duration ceiling below, so a fired hold and a recognized tap can never
+        // both apply to the same touch.
+        const HOLD_DURATION_MS = 400;
+        let holdTimer = null;
+        let holdFired = false;
+
         const getAngle = (t1, t2) => {
             return Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX) * 180 / Math.PI;
         };
@@ -517,6 +525,45 @@ const App = {
                 return { p, q };
             }
             return null;
+        };
+
+        // Fires when a hold is recognized (see the phone branch of touchstart). Holding the
+        // candidate ghost places it (mirrors tap-on-ghost's rotate); holding any placed piece
+        // picks it up, regardless of whether a candidate is currently selected -- unlike the
+        // old tap-to-pick-up, which silently failed whenever the tap happened to land near the
+        // candidate ghost (reported as "tap to pick up only works sometimes", GitHub issue #4).
+        const performHoldAction = (cell) => {
+            if (!cell || this.currentMode !== 'sandbox' && this.currentMode !== 'blast') return;
+            const modeObj = this.currentMode === 'sandbox' ? SandboxMode : BlastMode;
+            const pieceType = this.currentMode === 'sandbox' ? SandboxMode.state.selectedPiece : BlastMode.state.activePiece;
+
+            // Check pickup before placement: a placed piece's own cell is also where the
+            // candidate's ghost sits right after placing it (nothing moves the ghost away on
+            // its own), so holding there again must mean "pick this back up," not "place here
+            // again" -- which would just silently no-op anyway, since that cell is occupied.
+            if (this.currentMode === 'sandbox') {
+                const isOnPlacedPiece = SandboxMode.state.placedPieces.some(piece => {
+                    const cells = Pieces.getAbsoluteCells(piece.type, piece.p, piece.q, piece.rotation);
+                    return cells.some(c => c.p === cell.p && c.q === cell.q);
+                });
+                if (isOnPlacedPiece) {
+                    SandboxMode.pickupPieceAt(cell.p, cell.q);
+                    return;
+                }
+            }
+
+            if (pieceType) {
+                const ghostCells = Pieces.getAbsoluteCells(pieceType, modeObj.state.hoverCell.p, modeObj.state.hoverCell.q, modeObj.state.rotation);
+                if (ghostCells.some(c => c.p === cell.p && c.q === cell.q)) {
+                    if (this.currentMode === 'sandbox') {
+                        if (SandboxMode.canPlace(pieceType, modeObj.state.hoverCell.p, modeObj.state.hoverCell.q, modeObj.state.rotation)) {
+                            SandboxMode.placePiece(modeObj.state.hoverCell.p, modeObj.state.hoverCell.q);
+                        }
+                    } else if (Board.checkPlacement(pieceType, modeObj.state.hoverCell.p, modeObj.state.hoverCell.q, modeObj.state.rotation)) {
+                        BlastMode.placePiece(modeObj.state.hoverCell.p, modeObj.state.hoverCell.q);
+                    }
+                }
+            }
         };
 
         svg.addEventListener('touchstart', (e) => {
@@ -561,9 +608,18 @@ const App = {
                     preTouchHoverCell = null;
                 }
 
+                clearTimeout(holdTimer);
+                holdFired = false;
+
                 if (isPhone) {
                     if (pieceType) {
                         e.preventDefault();
+                    }
+                    if (touchStartCell) {
+                        holdTimer = setTimeout(() => {
+                            holdFired = true;
+                            performHoldAction(touchStartCell);
+                        }, HOLD_DURATION_MS);
                     }
                 } else {
                     // Standard Tablet/Desktop touch tap-tap-place behavior
@@ -630,17 +686,13 @@ const App = {
                 const touch = e.touches[0];
                 const dx = touch.clientX - touchStartX;
                 const dy = touch.clientY - touchStartY;
-                const dt = Date.now() - touchStartTime;
 
                 if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+                    if (!isDragging) clearTimeout(holdTimer); // real movement means this isn't a hold
                     isDragging = true;
                 }
 
                 if (isPhone) {
-                    // Prevent visual jump if they are just swiping vertically
-                    if (dt < 300 && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx) * 1.5) {
-                        return; // It's likely a swipe, don't move the piece
-                    }
                     const modeObj = this.currentMode === 'sandbox' ? SandboxMode : BlastMode;
                     const pieceType = this.currentMode === 'sandbox' ? SandboxMode.state.selectedPiece : BlastMode.state.activePiece;
 
@@ -726,6 +778,8 @@ const App = {
                 isGesture = false;
             }
 
+            clearTimeout(holdTimer);
+
             if (e.changedTouches.length === 1 && (this.currentMode === 'sandbox' || this.currentMode === 'blast')) {
                 e.preventDefault();
                 const touch = e.changedTouches[0];
@@ -733,88 +787,123 @@ const App = {
                 const dy = touch.clientY - touchStartY;
                 const duration = Date.now() - touchStartTime;
 
-                // Swipe = fast vertical flick (< 400ms, > 50px vertical, mostly vertical)
-                const isVerticalSwipe = duration < 400 && Math.abs(dy) > 50 && Math.abs(dy) > Math.abs(dx) * 1.5;
-                const isTap = !isDragging && duration < 250 && Math.abs(dx) < 15 && Math.abs(dy) < 15;
-
                 const modeObj = this.currentMode === 'sandbox' ? SandboxMode : BlastMode;
                 const pieceType = this.currentMode === 'sandbox' ? SandboxMode.state.selectedPiece : BlastMode.state.activePiece;
 
-                if (isVerticalSwipe) {
-                    // Revert the piece position to where it was before the swipe started
-                    if (preTouchHoverCell) {
-                        modeObj.state.hoverCell = preTouchHoverCell;
-                        modeObj.updateGhost();
-                    }
-                    
-                    if (dy > 50) {
-                        // Swipe Down -> Place piece at current ghost position
-                        const cell = modeObj.state.hoverCell;
-                        if (cell && pieceType) {
-                            if (this.currentMode === 'sandbox') {
-                                if (SandboxMode.canPlace(SandboxMode.state.selectedPiece, cell.p, cell.q, SandboxMode.state.rotation)) {
-                                    SandboxMode.placePiece(cell.p, cell.q);
-                                }
+                if (isPhone) {
+                    // Phone: pickup and placement are both holds now (see performHoldAction,
+                    // fired from touchstart's timer, not here) -- a plain tap only ever rotates
+                    // the candidate or moves it, never places or picks anything up. Swipe up/
+                    // down used to double as pick-up/place here too, which is gone along with
+                    // tap-to-pick-up: both were two intents sharing one ambiguous gesture.
+                    const isTap = !isDragging && !holdFired;
+                    if (isTap) {
+                        if (pieceType) {
+                            const tapCell = touchStartCell;
+                            const ghostCells = tapCell
+                                ? Pieces.getAbsoluteCells(pieceType, modeObj.state.hoverCell.p, modeObj.state.hoverCell.q, modeObj.state.rotation)
+                                : [];
+                            const tappedGhost = tapCell && ghostCells.some(c => c.p === tapCell.p && c.q === tapCell.q);
+
+                            if (!tapCell || tappedGhost) {
+                                // Tap on the candidate itself (or couldn't resolve a cell) ->
+                                // rotate clockwise. Holding the candidate places it instead (see
+                                // performHoldAction). updateGhost() itself sounds the new
+                                // orientation's cells.
+                                modeObj.state.rotation = (modeObj.state.rotation + 1) % 6;
+                                modeObj.updateGhost();
+                            } else if (this.currentMode === 'blast' && !Board.isCellEmpty(tapCell.p, tapCell.q)) {
+                                // Blast has no pickup — ignore taps on locked cells
                             } else {
-                                if (Board.checkPlacement(BlastMode.state.activePiece, cell.p, cell.q, BlastMode.state.rotation)) {
-                                    BlastMode.placePiece(cell.p, cell.q);
-                                }
+                                // Tap elsewhere -> move the candidate here instead of rotating.
+                                // Picking up a placed piece is a hold now, never a plain tap.
+                                modeObj.state.hoverCell = tapCell;
+                                modeObj.updateGhost();
+                            }
+                        } else {
+                            // Nothing selected -> the note-play tool: a tap ALWAYS plays the
+                            // note under the finger, regardless of any placed piece there.
+                            // Picking up a placed piece is a hold (see performHoldAction),
+                            // never a plain tap with nothing selected, so idly tapping around
+                            // to hear notes can never accidentally disturb something placed.
+                            if (touchStartCell) {
+                                const midi = Tonnetz.getMidi(touchStartCell.p, touchStartCell.q);
+                                Synth.playNote(midi);
                             }
                         }
-                    } else if (dy < -50) {
-                        // Swipe Up -> Pick up ONLY (never place)
-                        if (this.currentMode === 'sandbox' && preTouchHoverCell) {
-                            SandboxMode.pickupPieceAt(preTouchHoverCell.p, preTouchHoverCell.q);
-                        }
                     }
-                } else if (isTap) {
-                    const isOnPlacedPiece = (cell) => this.currentMode === 'sandbox' && cell && SandboxMode.state.placedPieces.some(piece => {
-                        const cells = Pieces.getAbsoluteCells(piece.type, piece.p, piece.q, piece.rotation);
-                        return cells.some(c => c.p === cell.p && c.q === cell.q);
-                    });
-                    const isWithinOneCell = (a, b) => (a.p === b.p && a.q === b.q) ||
-                        Tonnetz.getNeighbors(a.p, a.q).some(n => n.p === b.p && n.q === b.q);
+                    // If it was a drag or a hold (not a tap), do nothing further here -- a drag
+                    // just leaves the ghost where dropped, and a hold already fired its own
+                    // action from the touchstart timer.
+                } else {
+                    // Tablet/desktop touch: unchanged from before this gesture redesign --
+                    // touchstart already handles pickup/note-play immediately, so this is a
+                    // fallback for the tap-to-rotate and swipe-to-place/pick-up paths tablet
+                    // still uses.
+                    const isVerticalSwipe = duration < 400 && Math.abs(dy) > 50 && Math.abs(dy) > Math.abs(dx) * 1.5;
+                    const isTap = !isDragging && duration < 250 && Math.abs(dx) < 15 && Math.abs(dy) < 15;
 
-                    if (pieceType) {
-                        const tapCell = touchStartCell;
-                        const ghostCells = tapCell
-                            ? Pieces.getAbsoluteCells(pieceType, modeObj.state.hoverCell.p, modeObj.state.hoverCell.q, modeObj.state.rotation)
-                            : [];
-                        const tappedGhost = tapCell && ghostCells.some(c => c.p === tapCell.p && c.q === tapCell.q);
-                        const nearGhost = tapCell && ghostCells.some(c => isWithinOneCell(c, tapCell));
-
-                        if (!tapCell || tappedGhost) {
-                            // Tap on the candidate itself (or couldn't resolve a cell) -> rotate
-                            // clockwise. updateGhost() itself sounds the new orientation's cells.
-                            modeObj.state.rotation = (modeObj.state.rotation + 1) % 6;
+                    if (isVerticalSwipe) {
+                        // Revert the piece position to where it was before the swipe started
+                        if (preTouchHoverCell) {
+                            modeObj.state.hoverCell = preTouchHoverCell;
                             modeObj.updateGhost();
-                        } else if (isOnPlacedPiece(tapCell) && !nearGhost) {
-                            // Tap on an already-placed piece, away from the candidate -> pick it up
-                            modeObj.state.hoverCell = tapCell;
-                            SandboxMode.pickupPieceAt(tapCell.p, tapCell.q);
-                        } else if (this.currentMode === 'blast' && !Board.isCellEmpty(tapCell.p, tapCell.q)) {
-                            // Blast has no pickup — ignore taps on locked cells
+                        }
+
+                        if (dy > 50) {
+                            // Swipe Down -> Place piece at current ghost position
+                            const cell = modeObj.state.hoverCell;
+                            if (cell && pieceType) {
+                                if (this.currentMode === 'sandbox') {
+                                    if (SandboxMode.canPlace(SandboxMode.state.selectedPiece, cell.p, cell.q, SandboxMode.state.rotation)) {
+                                        SandboxMode.placePiece(cell.p, cell.q);
+                                    }
+                                } else {
+                                    if (Board.checkPlacement(BlastMode.state.activePiece, cell.p, cell.q, BlastMode.state.rotation)) {
+                                        BlastMode.placePiece(cell.p, cell.q);
+                                    }
+                                }
+                            }
+                        } else if (dy < -50) {
+                            // Swipe Up -> Pick up ONLY (never place)
+                            if (this.currentMode === 'sandbox' && preTouchHoverCell) {
+                                SandboxMode.pickupPieceAt(preTouchHoverCell.p, preTouchHoverCell.q);
+                            }
+                        }
+                    } else if (isTap) {
+                        const isOnPlacedPiece = (cell) => this.currentMode === 'sandbox' && cell && SandboxMode.state.placedPieces.some(piece => {
+                            const cells = Pieces.getAbsoluteCells(piece.type, piece.p, piece.q, piece.rotation);
+                            return cells.some(c => c.p === cell.p && c.q === cell.q);
+                        });
+                        if (pieceType) {
+                            const tapCell = touchStartCell;
+                            const ghostCells = tapCell
+                                ? Pieces.getAbsoluteCells(pieceType, modeObj.state.hoverCell.p, modeObj.state.hoverCell.q, modeObj.state.rotation)
+                                : [];
+                            const tappedGhost = tapCell && ghostCells.some(c => c.p === tapCell.p && c.q === tapCell.q);
+
+                            if (!tapCell || tappedGhost) {
+                                modeObj.state.rotation = (modeObj.state.rotation + 1) % 6;
+                                modeObj.updateGhost();
+                            } else if (isOnPlacedPiece(tapCell)) {
+                                modeObj.state.hoverCell = tapCell;
+                                SandboxMode.pickupPieceAt(tapCell.p, tapCell.q);
+                            } else if (this.currentMode === 'blast' && !Board.isCellEmpty(tapCell.p, tapCell.q)) {
+                                // Blast has no pickup — ignore taps on locked cells
+                            } else {
+                                modeObj.state.hoverCell = tapCell;
+                                modeObj.updateGhost();
+                            }
                         } else {
-                            // Tap elsewhere (including a placed piece near the candidate) ->
-                            // move the candidate here instead of rotating or picking up
-                            modeObj.state.hoverCell = tapCell;
-                            modeObj.updateGhost();
-                        }
-                    } else {
-                        // Nothing selected -> this is the note-play tool: a tap ALWAYS plays
-                        // the note under the finger, regardless of any placed piece there.
-                        // Picking up a placed piece is swipe-up (or tapping it while a
-                        // different piece is already selected, above) — never a plain tap with
-                        // nothing selected, so idly tapping around to hear notes can never
-                        // accidentally disturb something already placed.
-                        if (touchStartCell) {
-                            const midi = Tonnetz.getMidi(touchStartCell.p, touchStartCell.q);
-                            Synth.playNote(midi);
+                            if (touchStartCell) {
+                                const midi = Tonnetz.getMidi(touchStartCell.p, touchStartCell.q);
+                                Synth.playNote(midi);
+                            }
                         }
                     }
+                    // If it was a drag (not a swipe, not a tap), do nothing on touchend.
+                    // The ghost stays where the user dragged it.
                 }
-                // If it was a drag (not a swipe, not a tap), do nothing on touchend.
-                // The ghost stays where the user dragged it.
             }
         });
     },
