@@ -66,6 +66,39 @@ test('chord guide results show a piece preview matching the correct rotation, fo
   expect(badgeText.join('')).not.toContain('Use');
 });
 
+test('chord guide results are ordered simplest-first, matching the carousel order (not raw piece-type declaration order)', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());
+
+  const chordSelect = page.locator('#chord-guide-select');
+  const chordTypes = await chordSelect.locator('option').evaluateAll(
+    (opts) => opts.map(o => o.value).filter(v => v !== '')
+  );
+  expect(chordTypes.length).toBeGreaterThan(0);
+
+  let multiMatchChordsChecked = 0;
+
+  for (const chordType of chordTypes) {
+    await chordSelect.selectOption(chordType);
+    await expect(page.locator('.chord-match-item').first()).toBeVisible({ timeout: 3000 });
+
+    const pieceTypesInOrder = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('.chord-match-item')).map(item => item.getAttribute('data-type'))
+    );
+
+    if (pieceTypesInOrder.length < 2) continue; // ordering is only observable with 2+ results
+    multiMatchChordsChecked++;
+
+    const carouselIndices = await page.evaluate((types) =>
+      types.map(t => Pieces.CAROUSEL_ORDER.indexOf(t)), pieceTypesInOrder
+    );
+    const sortedIndices = [...carouselIndices].sort((a, b) => a - b);
+    expect(carouselIndices, `chord "${chordType}": results ${pieceTypesInOrder.join(',')} should follow carousel order`).toEqual(sortedIndices);
+  }
+
+  expect(multiMatchChordsChecked).toBeGreaterThan(0); // sanity: the test actually exercised ordering
+});
+
 test('chord guide X button resets the dropdown without touching a selected candidate', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => document.querySelector('.mode-option[data-mode="sandbox"]').click());

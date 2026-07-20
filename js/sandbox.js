@@ -656,7 +656,7 @@ const SandboxMode = {
         }
 
         const matches = [];
-        for (const typeKey of Object.keys(Pieces.TYPES)) {
+        for (const typeKey of Pieces.CAROUSEL_ORDER) {
             for (let r = 0; r < 6; r++) {
                 const cells = Pieces.getAbsoluteCells(typeKey, 0, 0, r);
                 const midis = cells.map(c => Tonnetz.getMidi(c.p, c.q));
