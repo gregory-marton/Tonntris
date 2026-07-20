@@ -303,6 +303,30 @@ than silently doing nothing.
 after rotating, a placed piece visibly moves with the lattice rather than staying fixed, a
 label's on-screen aspect ratio stays constant across rotation, and Gravity's immunity).
 
+### INV-25: A melody note's octave is part of its identity, and the UI must say so
+
+Melody mode's matching (`MidiMode.handleUserInputNote`) compares exact MIDI pitch, not just
+note NAME — two different-octave "E"s are genuinely different notes to it, and that's the
+correct rule: a melody's octave is part of the tune, not an incidental detail a player should be
+free to substitute. Real report: a player found it possible to play "the wrong E" against a real
+MIDI keyboard, which is an understandable mix-up, not a matching-logic bug — a big board (or a
+keyboard with several octaves of physical keys) puts more than one cell with the exact same
+bare note-name letter within easy reach, and the letter alone doesn't say which one is meant.
+
+Fixed at the legibility layer rather than by relaxing the match: `MidiMode.updateDifficultyUI`'s
+current-target readout (`#midi-note-list`) now shows an octave-qualified name (e.g. "E4", not
+just "E") for every displayed note, and the current target specifically also shows its exact
+frequency (e.g. "E4 (330Hz)") via the new `Tonnetz.getFrequency(midi)` (standard, unclamped
+MIDI-to-Hz — deliberately not the same value `Synth.playNote` actually plays back for an extreme
+note outside piano range, since that gets octave-wrapped for audibility first; see that
+function's own comment). `js/synth.js` was refactored to call the same shared function for its
+own (clamped-input) frequency, rather than keeping a second copy of the formula.
+
+**Test:** `tests/invariants.spec.js` — "INV-25: Melody mode rejects a different-octave note with
+the same name, and accepts the exact pitch" and "INV-25: Melody's current-target readout shows
+an octave-qualified note name and its exact frequency"; `tests/run_tests.js` — "Tonnetz.
+getFrequency tests" (pure MIDI-to-Hz correctness, independent of any UI).
+
 ---
 
 ## Primary Elements

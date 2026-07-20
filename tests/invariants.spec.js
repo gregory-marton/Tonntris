@@ -1065,4 +1065,61 @@ test.describe('Invariant tests', () => {
 
     await page.evaluate(() => Render.setRotation(0));
   });
+
+  // ────────────────────────────────────────────────────────────────────────
+  // INV-25: Melody mode's matching is exact-pitch (not just note-NAME), so two different-
+  // octave "E"s are genuinely different notes -- and the UI must say so clearly enough that a
+  // rejected note reads as "wrong octave," not as a mystifying bug. Real report: a player found
+  // it possible to play "the wrong E" against a real MIDI keyboard.
+  // ────────────────────────────────────────────────────────────────────────
+
+  test('INV-25: Melody mode rejects a different-octave note with the same name, and accepts the exact pitch', async ({ page }) => {
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="midi"]').click());
+    await expect(page.locator('#midi-game-status')).toHaveText(/Your turn!/, { timeout: 8000 });
+
+    const targetMidi = await page.evaluate(() => MidiMode.state.melody[MidiMode.state.userIndex].midi);
+
+    // Same pitch class (note name), different octave -- the exact "wrong E" scenario. A wrong
+    // note is also real, INTENDED to block further input for ~1.2s and requeue a full replay
+    // (mistake-recovery UX) -- irrelevant to what's under test here, so the two halves are
+    // checked independently rather than chained through that side effect.
+    const wrongOctaveMidi = targetMidi + 12;
+    const afterWrong = await page.evaluate((m) => {
+      MidiMode.handleUserInputNote(m);
+      return MidiMode.state.userIndex;
+    }, wrongOctaveMidi);
+    expect(afterWrong, 'a different-octave note sharing the same name must NOT count as correct').toBe(0);
+
+    await page.evaluate(() => {
+      MidiMode.state.isPlayingSequence = false;
+      if (MidiMode.state.mistakeTimeoutId) {
+        clearTimeout(MidiMode.state.mistakeTimeoutId);
+        MidiMode.state.mistakeTimeoutId = null;
+      }
+      MidiMode.state.userIndex = 0;
+    });
+
+    const afterCorrect = await page.evaluate((m) => {
+      MidiMode.handleUserInputNote(m);
+      return MidiMode.state.userIndex;
+    }, targetMidi);
+    expect(afterCorrect, 'the exact target pitch must still count as correct').toBe(1);
+  });
+
+  test('INV-25: Melody\'s current-target readout shows an octave-qualified note name and its exact frequency', async ({ page }) => {
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="midi"]').click());
+    await expect(page.locator('#midi-game-status')).toHaveText(/Your turn!/, { timeout: 8000 });
+
+    const { expectedText, targetMidi } = await page.evaluate(() => {
+      const midi = MidiMode.state.melody[MidiMode.state.userIndex].midi;
+      const name = `${Tonnetz.getNoteName(midi)}${Tonnetz.getOctave(midi)}`;
+      const hz = Math.round(Tonnetz.getFrequency(midi));
+      return { expectedText: `${name} (${hz}Hz)`, targetMidi: midi };
+    });
+
+    const currentSpan = page.locator('#midi-note-list [data-note-role="current"]');
+    await expect(currentSpan).toBeVisible();
+    const listText = (await page.locator('#midi-note-list').textContent()).replace(/\s+/g, ' ');
+    expect(listText, `expected "${expectedText}" somewhere in "${listText}"`).toContain(expectedText);
+  });
 });

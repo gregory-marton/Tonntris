@@ -89,7 +89,7 @@ const Synth = {
         const gain = this.ctx.createGain();
         
         osc.type = 'triangle';
-        osc.frequency.value = 440 * Math.pow(2, (playableMidi - 69) / 12);
+        osc.frequency.value = Tonnetz.getFrequency(playableMidi);
         
         gain.gain.setValueAtTime(0.0001, startTime);
         gain.gain.linearRampToValueAtTime(notePeak, startTime + 0.012);

@@ -53,6 +53,16 @@ const Tonnetz = {
         return Math.floor(midi / 12) - 1;
     },
 
+    // Standard MIDI-to-Hz conversion (A4 = MIDI 69 = 440Hz), unclamped -- deliberately NOT the
+    // same as what actually comes out of the speaker for an extreme note (Synth.playNote octave-
+    // wraps anything outside MIDI 21-108 before computing its OWN frequency from that wrapped
+    // value -- see js/synth.js). This is for DISPLAY: showing a note's true pitch, e.g. to tell
+    // two different-octave "E"s apart at a glance (see INV-25), not the possibly-different pitch
+    // that note actually plays back at.
+    getFrequency: function(midi) {
+        return 440 * Math.pow(2, (midi - 69) / 12);
+    },
+
     // Neighbors in 6 directions
     getNeighbors: function(p, q) {
         return [

@@ -314,6 +314,23 @@ try {
 
     console.log("PASS: Tonnetz.analyzeAllChords is fully correct!");
 
+    // Test Tonnetz.getFrequency -- standard MIDI-to-Hz, unclamped (INV-25's Hz/octave display
+    // reads directly off this, so its correctness matters beyond just the formula itself).
+    console.log("Running Tonnetz.getFrequency tests...");
+    if (Math.abs(TonnetzObj.getFrequency(69) - 440) > 0.001) {
+        console.error("FAIL: MIDI 69 (A4) should be exactly 440Hz! Got:", TonnetzObj.getFrequency(69));
+        process.exit(1);
+    }
+    if (Math.abs(TonnetzObj.getFrequency(81) - 880) > 0.001) {
+        console.error("FAIL: MIDI 81 (A5, one octave above A4) should be exactly 880Hz! Got:", TonnetzObj.getFrequency(81));
+        process.exit(1);
+    }
+    if (Math.abs(TonnetzObj.getFrequency(57) - 220) > 0.001) {
+        console.error("FAIL: MIDI 57 (A3, one octave below A4) should be exactly 220Hz! Got:", TonnetzObj.getFrequency(57));
+        process.exit(1);
+    }
+    console.log("PASS: Tonnetz.getFrequency is a correct, unclamped MIDI-to-Hz conversion!");
+
     // Test Case: MIDI Mode Touch Input Fix (Red-Green Verification)
     console.log("Running MIDI Mode touch input test...");
     

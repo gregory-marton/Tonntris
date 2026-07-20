@@ -158,7 +158,13 @@ test('updateDifficultyUI(overrideIndex) pivots the window on the override, not s
     return el ? el.textContent : null;
   });
 
-  const expectedName = await page.evaluate(() => Tonnetz.getNoteName(MidiMode.state.melody[5].midi));
+  // Octave-qualified (e.g. "E4", not bare "E") since INV-25 -- two different-octave notes
+  // sharing a bare name were an understandable "wrong note" mix-up (real report), fixed by
+  // making the octave part of every displayed name, not just the current target's.
+  const expectedName = await page.evaluate(() => {
+    const midi = MidiMode.state.melody[5].midi;
+    return `${Tonnetz.getNoteName(midi)}${Tonnetz.getOctave(midi)}`;
+  });
   expect(currentName).toBe(expectedName);
 });
 
@@ -182,7 +188,11 @@ test('playing the full melody preview live-updates the note list as it plays', a
     const el = document.querySelector('#midi-note-list [data-note-role="current"]');
     return el ? el.textContent : null;
   });
-  const expectedName = await page.evaluate(() => Tonnetz.getNoteName(MidiMode.state.melody[2].midi));
+  // Octave-qualified since INV-25 -- see the comment on the preceding test.
+  const expectedName = await page.evaluate(() => {
+    const midi = MidiMode.state.melody[2].midi;
+    return `${Tonnetz.getNoteName(midi)}${Tonnetz.getOctave(midi)}`;
+  });
   expect(currentName).toBe(expectedName);
 });
 
@@ -209,8 +219,136 @@ test('stopping preview restores the note list to reflect actual game progress', 
     const el = document.querySelector('#midi-note-list [data-note-role="current"]');
     return el ? el.textContent : null;
   });
-  const expectedName = await page.evaluate(() => Tonnetz.getNoteName(MidiMode.state.melody[MidiMode.state.userIndex].midi));
+  // Octave-qualified since INV-25 -- see the comment on the earlier "pivots the window" test.
+  const expectedName = await page.evaluate(() => {
+    const midi = MidiMode.state.melody[MidiMode.state.userIndex].midi;
+    return `${Tonnetz.getNoteName(midi)}${Tonnetz.getOctave(midi)}`;
+  });
   expect(currentName).toBe(expectedName);
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// MidiFolder (js/midi-folder.js, task #27): local MIDI folder source, replacing the plain
+// upload picker on browsers that support the File System Access API. window.showDirectoryPicker
+// is mocked with a fake directory handle (real handles are structured-cloneable into IndexedDB
+// specifically so they survive a real user's picker choice -- a fake JS object with methods is
+// NOT structured-cloneable, so these tests exercise MidiFolder's own logic/wiring directly
+// rather than round-tripping through real IndexedDB). MidiMode.parseMIDI is stubbed too, since
+// what's under test here is folder browsing, not Standard MIDI File decoding (which has no
+// coverage of its own yet, tracked separately -- not something to conflate with this feature).
+// ────────────────────────────────────────────────────────────────────────
+
+// Each fake file's "bytes" are just a one-byte tag identifying which fake file it is; the
+// parseMIDI stub reads that tag back out, so a distinct, easily-asserted MIDI note stands in for
+// "this specific file's real content loaded" without needing real Standard MIDI File bytes.
+const installFakeMidiFolder = (page, { files, permission = 'granted' }) => page.evaluate(({ files, permission }) => {
+  // Real FileSystemDirectoryHandles are structured-cloneable (by design, so they survive an
+  // IndexedDB round-trip) -- a fake JS object with methods is NOT, so saveHandle would throw a
+  // real DataCloneError against a fake handle. Stubbed out here since these tests exercise
+  // MidiFolder's own browsing/restore logic, not real IndexedDB persistence.
+  MidiFolder.saveHandle = async () => {};
+  window.__parseMIDICalls = [];
+  MidiMode.parseMIDI = (buf) => {
+    const tag = new Uint8Array(buf)[0];
+    window.__parseMIDICalls.push(tag);
+    return { notes: [{ midi: 60 + tag, time: 0, duration: 0.5 }] };
+  };
+
+  const entries = files.map(f => ({
+    kind: 'file',
+    name: f.name,
+    getFile: async () => ({ name: f.name, arrayBuffer: async () => new Uint8Array([f.tag]).buffer }),
+  }));
+  window.__fakeFolderHandle = {
+    name: 'MySongs',
+    values: async function* () { for (const e of entries) yield e; },
+    queryPermission: async () => permission,
+    requestPermission: async () => 'granted',
+  };
+  window.showDirectoryPicker = async () => window.__fakeFolderHandle;
+}, { files, permission });
+
+test('MidiFolder: choosing a folder lists only .mid/.midi files (sorted) and auto-loads the first', async ({ page }) => {
+  await page.goto('/');
+  await installFakeMidiFolder(page, {
+    files: [
+      { name: 'Zebra.mid', tag: 0 },
+      { name: 'Apple.midi', tag: 1 },
+      { name: 'readme.txt', tag: 2 }, // not a MIDI file -- must be filtered out
+    ],
+  });
+  await page.evaluate(() => document.querySelector('.mode-option[data-mode="midi"]').click());
+
+  await page.locator('#midi-choose-folder-btn').click();
+  await page.waitForFunction(() => document.getElementById('midi-folder-files').options.length > 0);
+
+  const optionNames = await page.evaluate(() =>
+    Array.from(document.getElementById('midi-folder-files').options).map(o => o.textContent)
+  );
+  // Sorted alphabetically, and readme.txt excluded entirely.
+  expect(optionNames).toEqual(['Apple', 'Zebra']);
+
+  // The first file in SORTED order (Apple, tag 1) auto-loads, not upload order (Zebra was listed
+  // first in the fake folder above).
+  const loadedMidi = await page.evaluate(() => MidiMode.state.melody[0].midi);
+  expect(loadedMidi).toBe(61);
+});
+
+test('MidiFolder: selecting a different dropdown entry loads that file instead', async ({ page }) => {
+  await page.goto('/');
+  await installFakeMidiFolder(page, {
+    files: [{ name: 'Apple.mid', tag: 0 }, { name: 'Banana.mid', tag: 1 }],
+  });
+  await page.evaluate(() => document.querySelector('.mode-option[data-mode="midi"]').click());
+
+  await page.locator('#midi-choose-folder-btn').click();
+  await page.waitForFunction(() => document.getElementById('midi-folder-files').options.length > 0);
+  expect(await page.evaluate(() => MidiMode.state.melody[0].midi)).toBe(60); // Apple auto-loaded
+
+  await page.locator('#midi-folder-files').selectOption({ label: 'Banana' });
+  await page.waitForFunction(() => MidiMode.state.melody[0].midi === 61);
+  expect(await page.evaluate(() => MidiMode.state.melody[0].midi)).toBe(61);
+});
+
+test('MidiFolder: a granted saved folder restores silently on entering Melody mode, no click needed', async ({ page }) => {
+  await page.goto('/');
+  await installFakeMidiFolder(page, { files: [{ name: 'Saved.mid', tag: 5 }], permission: 'granted' });
+  await page.evaluate(() => {
+    MidiFolder.loadHandle = async () => window.__fakeFolderHandle;
+  });
+
+  await page.evaluate(() => document.querySelector('.mode-option[data-mode="midi"]').click());
+  await page.waitForFunction(() => document.getElementById('midi-folder-files').options.length > 0);
+
+  expect(await page.evaluate(() => MidiMode.state.melody[0].midi)).toBe(65);
+  await expect(page.locator('#midi-folder-status')).toHaveText(/MySongs/);
+});
+
+test('MidiFolder: a lapsed (non-granted) saved folder shows a one-click reconnect instead of silently failing', async ({ page }) => {
+  await page.goto('/');
+  await installFakeMidiFolder(page, { files: [{ name: 'Saved.mid', tag: 2 }], permission: 'prompt' });
+  await page.evaluate(() => {
+    MidiFolder.loadHandle = async () => window.__fakeFolderHandle;
+  });
+
+  await page.evaluate(() => document.querySelector('.mode-option[data-mode="midi"]').click());
+  await page.waitForFunction(() => document.getElementById('midi-folder-status').textContent.includes('Reconnect'));
+
+  // No file should have loaded yet -- permission wasn't granted, so nothing was silently read.
+  expect(await page.evaluate(() => document.getElementById('midi-folder-files').options.length)).toBe(0);
+
+  await page.locator('#midi-choose-folder-btn').click(); // now reads "Reconnect Folder"
+  await page.waitForFunction(() => document.getElementById('midi-folder-files').options.length > 0);
+  expect(await page.evaluate(() => MidiMode.state.melody[0].midi)).toBe(62);
+});
+
+test('MidiFolder: on an unsupported browser, the folder UI stays hidden and the plain upload picker is untouched', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => { delete window.showDirectoryPicker; });
+  await page.evaluate(() => document.querySelector('.mode-option[data-mode="midi"]').click());
+
+  await expect(page.locator('#midi-folder-group')).toBeHidden();
+  await expect(page.locator('#midi-upload-group')).toBeVisible();
 });
 
 test('Render.getFitView centers a set of cells within the reference viewBox', async ({ page }) => {

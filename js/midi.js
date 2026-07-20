@@ -132,32 +132,9 @@ const MidiMode = {
                 const file = e.target.files[0];
                 if (!file) return;
 
-                if (filenameSpan) {
-                    filenameSpan.textContent = file.name;
-                }
-
                 const reader = new FileReader();
                 reader.onload = (event) => {
-                    try {
-                        const parsed = this.parseMIDI(event.target.result);
-                        if (!parsed || parsed.notes.length === 0) {
-                            alert("No notes found in the MIDI file.");
-                            return;
-                        }
-
-                        // Filter to a monophonic sequence
-                        let melodySeq = this.extractMonophonicMelody(parsed);
-                        
-                        // Center notes in the viewport octave range
-                        melodySeq = this.centerMelody(melodySeq);
-
-                        this.state.melody = melodySeq;
-                        this.resetGame();
-                        this.refreshBoard();
-                    } catch (err) {
-                        console.error(err);
-                        alert("Error parsing MIDI file. Please make sure it is a valid Standard MIDI File.");
-                    }
+                    this.loadMelodyFromArrayBuffer(event.target.result, file.name);
                 };
                 reader.readAsArrayBuffer(file);
             };
@@ -186,6 +163,37 @@ const MidiMode = {
                 this.state.difficulty = e.target.value;
                 this.updateDifficultyUI();
             };
+        }
+
+        if (typeof MidiFolder !== 'undefined') MidiFolder.setup(this);
+    },
+
+    // Parses a Standard MIDI File already read into memory and loads it as the active melody --
+    // shared by both the plain <input type=file> picker (fileInput.onchange above) and the
+    // File System Access folder browser (js/midi-folder.js), so parsing/centering/reset logic
+    // lives in exactly one place regardless of which UI supplied the bytes.
+    loadMelodyFromArrayBuffer: function(arrayBuffer, displayName) {
+        const filenameSpan = document.getElementById('midi-filename');
+        try {
+            const parsed = this.parseMIDI(arrayBuffer);
+            if (!parsed || parsed.notes.length === 0) {
+                alert("No notes found in the MIDI file.");
+                return;
+            }
+
+            // Filter to a monophonic sequence
+            let melodySeq = this.extractMonophonicMelody(parsed);
+
+            // Center notes in the viewport octave range
+            melodySeq = this.centerMelody(melodySeq);
+
+            this.state.melody = melodySeq;
+            if (filenameSpan && displayName) filenameSpan.textContent = displayName;
+            this.resetGame();
+            this.refreshBoard();
+        } catch (err) {
+            console.error(err);
+            alert("Error parsing MIDI file. Please make sure it is a valid Standard MIDI File.");
         }
     },
 
@@ -361,11 +369,18 @@ const MidiMode = {
         const futureWindow = diff === 'easy' ? 4 : 0; // Current + 3 ahead
         const pastOpacityByDistance = { 1: 0.85, 2: 0.55, 3: 0.3 };
 
+        // Octave-qualified (e.g. "E4", not just "E") -- a big board renders the same note NAME
+        // at several different octaves at once (see INV-25), so the bare letter name alone
+        // doesn't say which specific cell/pitch is meant. Real bug report: playing the "wrong E"
+        // -- an understandable mix-up between two different E's, not a matching-logic bug (exact
+        // MIDI equality is the correct rule for a melody, where octave is part of the tune).
+        const qualifiedName = (midi) => `${Tonnetz.getNoteName(midi)}${Tonnetz.getOctave(midi)}`;
+
         // Add past notes, fading progressively with distance so the most recently
         // played note reads as distinct from older history
         for (let i = Math.max(0, current - pastWindow); i < current; i++) {
             const midi = melody[i].midi;
-            const name = Tonnetz.getNoteName(midi);
+            const name = qualifiedName(midi);
             const distance = current - i;
             const opacity = pastOpacityByDistance[distance] || 0.3;
             displayNotes.push(`<span data-note-role="past" data-distance="${distance}" style="opacity: ${opacity};">${name}</span>`);
@@ -379,9 +394,10 @@ const MidiMode = {
         if (diff === 'easy') {
             for (let i = current; i < Math.min(melody.length, current + futureWindow); i++) {
                 const midi = melody[i].midi;
-                const name = Tonnetz.getNoteName(midi);
+                const name = qualifiedName(midi);
                 if (i === current) {
-                    displayNotes.push(`<span data-note-role="current" style="color: var(--accent); font-size: 1.1em; font-weight: 900;">${name}</span>`);
+                    const hz = Math.round(Tonnetz.getFrequency(midi));
+                    displayNotes.push(`<span data-note-role="current" style="color: var(--accent); font-size: 1.1em; font-weight: 900;">${name}</span><span style="opacity: 0.6; font-weight: normal; font-size: 0.85em;"> (${hz}Hz)</span>`);
                 } else {
                     displayNotes.push(`<span data-note-role="future" style="opacity: 0.8;">${name}</span>`);
                 }
