@@ -351,6 +351,64 @@ test('MidiFolder: on an unsupported browser, the folder UI stays hidden and the 
   await expect(page.locator('#midi-upload-group')).toBeVisible();
 });
 
+// ────────────────────────────────────────────────────────────────────────
+// Melody mode mouse-drag panning -- real report: rotating the view (INV-24) could move a
+// melody's notes off-screen with no way back, since Melody had no pan capability at all (touch
+// OR mouse), despite Render.getPanBounds() already listing 'midi' among the free-pan modes.
+// Uses Playwright's real mouse API (not a synthetic .click()), matching this project's existing
+// discipline for touch events -- a real mousedown-then-move sequence is what actually exercises
+// the drag-vs-click distinction, not a single synthetic event.
+// ────────────────────────────────────────────────────────────────────────
+
+test('Melody mode: dragging the mouse pans the Tonnetz, and still plays the clicked cell\'s note', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => document.querySelector('.mode-option[data-mode="midi"]').click());
+  // resetGame()'s auto-kickoff "listen to the notes" intro sets isPlayingSequence, which blocks
+  // svg.onmousedown entirely (including the pan it starts) until it finishes.
+  await expect(page.locator('#midi-game-status')).toHaveText(/Your turn!/, { timeout: 8000 });
+
+  const before = await page.evaluate(() => ({ x: Render.viewX, y: Render.viewY }));
+
+  await page.evaluate(() => {
+    window.__played = [];
+    Synth.playNote = (midi) => window.__played.push(midi);
+  });
+
+  const box = await page.locator('#tonnetz-svg').boundingBox();
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx - 80, cy - 60, { steps: 5 });
+  await page.mouse.up();
+
+  const after = await page.evaluate(() => ({ x: Render.viewX, y: Render.viewY }));
+  expect(after, 'dragging should move the view').not.toEqual(before);
+
+  const played = await page.evaluate(() => window.__played);
+  expect(played.length, 'the initial mousedown should still play whatever cell was clicked').toBeGreaterThan(0);
+});
+
+test('Melody mode: a pan survives refreshBoard() (e.g. after rotating), instead of snapping back to the fixed default', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => document.querySelector('.mode-option[data-mode="midi"]').click());
+
+  // A small, realistic offset from the -400/-300 default -- large enough to prove refreshBoard()
+  // didn't just reset to the fixed default, but well within Render.getPanBounds()'s allowed
+  // range so this test verifies persistence, not clamping (a separate, already-covered concern).
+  await page.evaluate(() => {
+    MidiMode.state.viewX = -450;
+    MidiMode.state.viewY = -320;
+    Render.updateView(-450, -320, Render.zoom);
+  });
+
+  await page.evaluate(() => MidiMode.refreshBoard());
+
+  const view = await page.evaluate(() => ({ x: Render.viewX, y: Render.viewY }));
+  expect(view).toEqual({ x: -450, y: -320 });
+});
+
 test('Render.getFitView centers a set of cells within the reference viewBox', async ({ page }) => {
   await page.goto('/');
   const result = await page.evaluate(() => Render.getFitView([{ p: 0, q: 0 }], 20));

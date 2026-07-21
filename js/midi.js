@@ -40,6 +40,16 @@ const MidiMode = {
         hoverCell: { p: 0, q: 0 }, // Keyboard navigation hover cell
         reverseQwertyMap: {},      // Reverse mapping built in init()
 
+        // Free-pan state (mouse; see setupKeyboardEvents) -- matches SandboxMode's own
+        // viewX/viewY/isPanning/lastMouse fields exactly, so the mouse-drag pattern (play the
+        // clicked cell's note on mousedown, ALSO start tracking for a possible drag, update on
+        // mousemove if dragging, stop on mouseup) is one already-proven interaction, not a new
+        // one invented for this mode.
+        viewX: -400,
+        viewY: -300,
+        isPanning: false,
+        lastMouse: { x: 0, y: 0 },
+
         qwertyMap: {
             // Row q = 3 (Shift + Top Letter)
             'Q': { p: -5, q: 3 }, 'W': { p: -4, q: 3 }, 'E': { p: -3, q: 3 }, 'R': { p: -2, q: 3 }, 'T': { p: -1, q: 3 },
@@ -199,10 +209,33 @@ const MidiMode = {
 
     setupKeyboardEvents: function() {
         const svg = Render.svg;
+        const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
         window.onmousemove = (e) => {
+            // Panning is just camera movement -- independent of whether the game is currently
+            // auto-playing the intro or showing a "wrong note" mistake recovery (both set
+            // isPlayingSequence). A click that plays the "wrong" note deliberately sets that
+            // flag for ~1.2s (see handleUserInputNote's Mistake! branch) -- gating pan on it too
+            // would leave a real player unable to drag the view for over a second after almost
+            // any accidental wrong-note click, which is exactly the bug this fix is for.
+            if (!isTouch && this.state.isPanning) {
+                const dx = e.clientX - this.state.lastMouse.x;
+                const dy = e.clientY - this.state.lastMouse.y;
+                this.state.viewX -= dx;
+                this.state.viewY -= dy;
+                this.state.lastMouse = { x: e.clientX, y: e.clientY };
+                Render.updateView(this.state.viewX, this.state.viewY, Render.zoom);
+                // Read back the clamped values so the next delta starts from where we actually are
+                this.state.viewX = Render.viewX;
+                this.state.viewY = Render.viewY;
+            }
+
             if (this.state.isPlayingPreview || this.state.isPlayingSequence) return;
             this.updateGhost(e);
+        };
+
+        window.onmouseup = () => {
+            this.state.isPanning = false;
         };
 
         window.onkeydown = (e) => {
@@ -235,6 +268,11 @@ const MidiMode = {
                 this.state.hoverCell = { p, q };
                 const midi = Tonnetz.getMidi(p, q);
                 this.playUserNote(midi, p, q);
+            }
+
+            if (!isTouch) {
+                this.state.isPanning = true;
+                this.state.lastMouse = { x: e.clientX, y: e.clientY };
             }
         };
     },
@@ -647,7 +685,14 @@ const MidiMode = {
             minQ: -15, maxQ: 15
         };
         Render.drawLattice(viewport, {});
-        Render.updateView(-400, -300, Render.getResponsiveZoom());
+        // Reads back the player's own pan position (see setupKeyboardEvents/state.viewX/viewY),
+        // not a fixed default -- otherwise every redraw (resetGame, loading a new melody,
+        // rotating the view) would silently discard wherever the player last panned to,
+        // matching a real report: rotating moved melodies off-screen with no way to pan back,
+        // since panning didn't exist here at all until now.
+        Render.updateView(this.state.viewX, this.state.viewY, Render.getResponsiveZoom());
+        this.state.viewX = Render.viewX;
+        this.state.viewY = Render.viewY;
     },
 
     // MIDI parser logic (SMF format)

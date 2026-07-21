@@ -136,8 +136,28 @@ Sandbox and Melody allow free pan/zoom. Once the player sets a pan/zoom, using s
 control (selecting a carousel piece, opening the chord guide, etc.) must not reset it back to
 a default.
 
+This claim went unfulfilled for Melody for a while: `Render.getPanBounds()` already listed
+`'midi'` among the free-pan modes, but nothing ever actually wired up input to move Melody's
+view — no mouse-drag, no two-finger touch drag, and `MidiMode.refreshBoard()` always reset to a
+hardcoded `(-400, -300)` regardless of any pan. Real report: rotating the view (INV-24) could
+move a melody's notes off-screen with no way back, since there was no way to pan back at all.
+Fixed by mirroring Sandbox's exact mouse-drag pattern (`MidiMode.state.viewX/viewY/isPanning/
+lastMouse`, wired in `setupKeyboardEvents`) and extending the shared two-finger touch-pan
+gesture (`js/main.js`) to Melody — guarded so its "twist to rotate a piece" half stays
+Sandbox/Blast-only, since Melody has no selected/active-piece concept. `refreshBoard()` now
+reads back the player's own persisted `state.viewX/viewY` instead of the fixed default.
+
+One real bug surfaced while fixing this: the mouse-drag `onmousemove` handler's pan logic was
+initially gated behind the same `isPlayingSequence` check that skips ghost-hover updates during
+playback -- but a wrong-note click sets that same flag for ~1.2s (the "Oops! Let's listen
+again..." mistake recovery), which would have left a player unable to drag the view for over a
+second after almost any accidental wrong-note click. Panning is camera movement, unrelated to
+note-input validity, so it now runs unconditionally; only the ghost-hover update stays gated.
+
 **Test:** `tests/invariants.spec.js` — "INV-12: panning Sandbox's Tonnetz is preserved across
-an unrelated control interaction"
+an unrelated control interaction" and the analogous Melody version; `tests/desktop.spec.js` —
+"Melody mode: dragging the mouse pans the Tonnetz..." and "...a pan survives refreshBoard()...";
+`tests/mobile.spec.js` — "Melody mode: a real two-finger drag pans the Tonnetz".
 
 ### INV-13: Primary elements are reachable in every orientation
 

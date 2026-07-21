@@ -590,8 +590,11 @@ const App = {
                         const midi = Tonnetz.getMidi(cell.p, cell.q);
                         MidiMode.playUserNote(midi, cell.p, cell.q);
                     }
+                    return;
                 }
-                return;
+                // Falls through to the shared two-finger gesture setup below for a 2-touch
+                // start -- Melody has no selected-piece concept to rotate via twist, so only
+                // the pan half of that gesture ever does anything here (see touchmove).
             }
 
             if (this.currentMode === 'gravity') return;
@@ -681,7 +684,14 @@ const App = {
         }, { passive: false });
 
         svg.addEventListener('touchmove', (e) => {
-            if (this.currentMode === 'midi' || this.currentMode === 'snake') {
+            if (this.currentMode === 'snake') {
+                e.preventDefault();
+                return;
+            }
+
+            // A single touch in Melody mode is tap-to-play (handled entirely in touchstart) --
+            // only a 2-touch pan gesture (below) applies here.
+            if (this.currentMode === 'midi' && e.touches.length !== 2) {
                 e.preventDefault();
                 return;
             }
@@ -736,8 +746,11 @@ const App = {
                 if (diff > 180) diff -= 360;
                 if (diff < -180) diff += 360;
 
-                // Twist angle threshold: 30 degrees
-                if (Math.abs(diff) > 30) {
+                // Twist angle threshold: 30 degrees. Melody has no selected/active-piece concept
+                // to rotate this way, so this whole sub-branch is Sandbox/Blast only -- letting
+                // 'midi' fall through here would read/write BlastMode's own state from inside a
+                // completely unrelated mode's gesture.
+                if (Math.abs(diff) > 30 && (this.currentMode === 'sandbox' || this.currentMode === 'blast')) {
                     const modeObj = this.currentMode === 'sandbox' ? SandboxMode : BlastMode;
                     const rotateDir = diff > 0 ? -1 : 1; // Physical CW twist → CW piece rotation
                     const pieceType = this.currentMode === 'sandbox' ? SandboxMode.state.selectedPiece : BlastMode.state.activePiece;
@@ -770,10 +783,16 @@ const App = {
 
                     Render.updateView(newViewX, newViewY, Render.zoom);
 
-                    // Keep SandboxMode.state in sync with the (possibly clamped) result
+                    // Keep the mode's own persisted view state in sync with the (possibly
+                    // clamped) result -- otherwise the next refreshBoard() (resetGame, loading a
+                    // new melody, the rotate-view button) would read the stale pre-drag value and
+                    // silently discard wherever the player just panned to.
                     if (this.currentMode === 'sandbox') {
                         SandboxMode.state.viewX = Render.viewX;
                         SandboxMode.state.viewY = Render.viewY;
+                    } else if (this.currentMode === 'midi') {
+                        MidiMode.state.viewX = Render.viewX;
+                        MidiMode.state.viewY = Render.viewY;
                     }
                 }
             }

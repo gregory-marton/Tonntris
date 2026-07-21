@@ -542,6 +542,51 @@ test.describe('Mobile Viewport and Layout Tests', () => {
     expect(placedCount).toBe(0);
   });
 
+  // Real report: rotating Melody's view (INV-24) could move a melody's notes off-screen with
+  // no way back, since Melody had no pan capability at all (touch OR mouse) -- despite
+  // Render.getPanBounds() already listing 'midi' among the free-pan modes, its touchstart/
+  // touchmove handlers (js/main.js) unconditionally blocked it. Two real, simultaneous touch
+  // points (not one dispatched twice) are required to exercise the actual 2-finger gesture path.
+  test('Melody mode: a real two-finger drag pans the Tonnetz', async ({ page }) => {
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="midi"]').click());
+    await page.evaluate(() => {
+      window.__dispatchTwoTouch = function(type, points) {
+        const el = document.getElementById('tonnetz-svg');
+        const touches = points.map((p, i) => new Touch({
+          identifier: i, target: el, clientX: p.x, clientY: p.y, pageX: p.x, pageY: p.y,
+        }));
+        const config = { bubbles: true, cancelable: true, changedTouches: touches };
+        if (type === 'touchend') {
+          config.touches = [];
+          config.targetTouches = [];
+        } else {
+          config.touches = touches;
+          config.targetTouches = touches;
+        }
+        el.dispatchEvent(new TouchEvent(type, config));
+      };
+    });
+
+    const before = await page.evaluate(() => ({ x: Render.viewX, y: Render.viewY }));
+
+    const box = await page.locator('#tonnetz-svg').boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    const p1 = { x: cx - 40, y: cy };
+    const p2 = { x: cx + 40, y: cy };
+
+    await page.evaluate(pts => window.__dispatchTwoTouch('touchstart', pts), [p1, p2]);
+    await page.evaluate(pts => window.__dispatchTwoTouch('touchmove', pts), [
+      { x: p1.x - 60, y: p1.y - 50 }, { x: p2.x - 60, y: p2.y - 50 },
+    ]);
+    await page.evaluate(pts => window.__dispatchTwoTouch('touchend', pts), [
+      { x: p1.x - 60, y: p1.y - 50 }, { x: p2.x - 60, y: p2.y - 50 },
+    ]);
+
+    const after = await page.evaluate(() => ({ x: Render.viewX, y: Render.viewY }));
+    expect(after).not.toEqual(before);
+  });
+
   test('drag repositions ghost WITHOUT placing or picking up', async ({ page }) => {
     const width = page.viewportSize().width;
     if (width >= 768) return;

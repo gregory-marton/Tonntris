@@ -473,6 +473,27 @@ test.describe('Invariant tests', () => {
     expect(viewAfter).toEqual(viewBefore);
   });
 
+  // This invariant's own prose claimed Melody supported free pan/zoom well before it actually
+  // did -- Melody had zero pan capability (touch or mouse) until a real report (rotating the
+  // view could move a melody off-screen with no way back) prompted adding it. Mirrors the
+  // Sandbox test above exactly, closing that doc/implementation gap.
+  test('INV-12: panning Melody\'s Tonnetz is preserved across an unrelated control interaction', async ({ page }) => {
+    await page.evaluate(() => document.querySelector('.mode-option[data-mode="midi"]').click());
+    await expect(page.locator('#midi-game-status')).toHaveText(/Your turn!/, { timeout: 8000 });
+
+    await page.evaluate(() => {
+      Render.updateView(-999, -888, 1);
+      MidiMode.state.viewX = Render.viewX;
+      MidiMode.state.viewY = Render.viewY;
+    });
+    const viewBefore = await page.evaluate(() => ({ x: Render.viewX, y: Render.viewY }));
+
+    await page.selectOption('#midi-difficulty', 'medium');
+
+    const viewAfter = await page.evaluate(() => ({ x: Render.viewX, y: Render.viewY }));
+    expect(viewAfter).toEqual(viewBefore);
+  });
+
   // ────────────────────────────────────────────────────────────────────────
   // INV-13: Primary elements set-identity — the per-mode primary-element inventory in
   // docs/invariants.md's "Primary Elements" table is reachable in BOTH portrait and landscape,
